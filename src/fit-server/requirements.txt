@@ -1,6 +1,7 @@
 langchain
 langchain-openai
 langchain-anthropic
+langchain-google-genai
 langgraph
 python-dotenv
 tavily-python

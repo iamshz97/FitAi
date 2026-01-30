@@ -26,10 +26,10 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Model configuration - set via environment variable or default to Google Gemini
+# Model configuration - set via environment variable or default to OpenAI
 # Format: "provider:model_name"
-# Examples: "openai:gpt-4o-mini", "openai:gpt-4o", "google_genai:gemini-2.5-flash", "google_genai:gemini-1.5-pro"
-DEFAULT_MODEL_CONFIG = os.getenv("FIT_AI_MODEL", "google_genai:gemini-3-flash")
+# Examples: "openai:gpt-4o-mini", "openai:gpt-4o", "google_genai:gemini-2.0-flash", "google_genai:gemini-1.5-pro"
+DEFAULT_MODEL_CONFIG = os.getenv("FIT_AI_MODEL", "openai:gpt-4o-mini")
 
 # Parse model provider and name
 def parse_model_config(config: str) -> tuple[str, str]:
