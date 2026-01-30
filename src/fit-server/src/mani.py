@@ -13,6 +13,8 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from deepagents import create_deep_agent
+from langgraph.checkpoint.memory import MemorySaver
+import pathlib
 
 # Load environment variables
 load_dotenv()
@@ -303,24 +305,64 @@ Return ONLY the JSON object, no additional text or markdown formatting.""",
 
 # ==================== Main Agent ====================
 
-def create_fitness_agent():
-    """Create the main fitness planning agent with subagents."""
+# Skills directory path
+SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
+
+
+def load_skills() -> dict:
+    """Load all skills from the skills directory."""
+    skills_files = {}
+    
+    if not SKILLS_DIR.exists():
+        print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
+        return skills_files
+    
+    for skill_dir in SKILLS_DIR.iterdir():
+        if skill_dir.is_dir():
+            skill_file = skill_dir / "SKILL.md"
+            if skill_file.exists():
+                with open(skill_file, 'r', encoding='utf-8') as f:
+                    skill_content = f.read()
+                # Use forward slashes for virtual path
+                virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
+                skills_files[virtual_path] = skill_content
+                print(f"✅ Loaded skill: {skill_dir.name}")
+    
+    return skills_files
+
+
+def create_fitness_agent(thread_id: str = None):
+    """Create the main fitness planning agent with subagents and skills."""
+    checkpointer = MemorySaver()
+    
     return create_deep_agent(
         model="openai:gpt-4o-mini",
         name="fitness-coordinator",
+        skills=["./skills/"],
+        checkpointer=checkpointer,
         system_prompt="""You are FitAI, an intelligent fitness and nutrition coordinator. Your job is to orchestrate the creation of personalized workout and meal plans.
+
+SKILLS AVAILABLE:
+You have access to specialized skills that provide domain knowledge:
+- exercise-database: Reference for exercise selection, injury modifications, and workout programming
+- nutrition-guidelines: Reference for macro calculations, food choices, and dietary restrictions
+
+Use these skills when you need detailed information about exercises or nutrition.
 
 WORKFLOW:
 1. Analyze the user's profile data (age, gender, height, weight, goal, etc.)
-2. Delegate workout plan creation to the workout-planner subagent
-3. Delegate meal plan creation to the meal-planner subagent
-4. Ensure both plans are aligned with the user's goals
+2. Reference the exercise-database skill for injury-safe exercise selection
+3. Reference the nutrition-guidelines skill for dietary restriction handling
+4. Delegate workout plan creation to the workout-planner subagent
+5. Delegate meal plan creation to the meal-planner subagent
+6. Ensure both plans are aligned with the user's goals
 
 IMPORTANT:
 - Always delegate to specialized subagents using the task() tool
 - The workout-planner handles all exercise-related planning
 - The meal-planner handles all nutrition-related planning
 - Ensure plans account for any injuries or dietary restrictions mentioned
+- Use skills for reference information, subagents for plan generation
 
 When delegating tasks, provide all relevant user profile information to each subagent.""",
         subagents=[workout_subagent, meal_subagent]
@@ -334,9 +376,10 @@ When delegating tasks, provide all relevant user profile information to each sub
     wait=wait_exponential(multiplier=2, min=4, max=30),
     reraise=True
 )
-def invoke_agent_with_retry(agent, messages: dict):
+def invoke_agent_with_retry(agent, messages: dict, thread_id: str = None):
     """Invoke agent with retry logic for rate limits."""
-    return agent.invoke(messages)
+    config = {"configurable": {"thread_id": thread_id}} if thread_id else None
+    return agent.invoke(messages, config=config)
 
 
 def extract_json_from_response(response_text: str) -> dict:
@@ -418,8 +461,12 @@ async def generate_plan(profile: UserProfile):
     - Dietary restrictions
     """
     try:
-        # Create the fitness agent
-        agent = create_fitness_agent()
+        # Create the fitness agent with thread for state
+        thread_id = f"plan_{profile.user_id}_{uuid.uuid4().hex[:8]}"
+        agent = create_fitness_agent(thread_id)
+        
+        # Load skills files
+        skills_files = load_skills()
         
         # Calculate metabolic data
         bmr = calculate_bmr(profile.age, profile.gender, profile.height, profile.weight)
@@ -470,7 +517,14 @@ Create a personalized workout plan for:
 Return ONLY a valid JSON object.
 """
         
-        workout_response = invoke_agent_with_retry(agent, {"messages": [{"role": "user", "content": f"Use the workout-planner subagent for this task: {workout_prompt}"}]})
+        workout_response = invoke_agent_with_retry(
+            agent, 
+            {
+                "messages": [{"role": "user", "content": f"Use the workout-planner subagent for this task: {workout_prompt}"}],
+                "files": skills_files
+            },
+            thread_id=thread_id
+        )
         workout_text = workout_response["messages"][-1].content if workout_response.get("messages") else ""
         workout_plan = extract_json_from_response(workout_text)
         
@@ -489,7 +543,14 @@ Create a personalized meal plan for:
 Return ONLY a valid JSON object.
 """
         
-        meal_response = invoke_agent_with_retry(agent, {"messages": [{"role": "user", "content": f"Use the meal-planner subagent for this task: {meal_prompt}"}]})
+        meal_response = invoke_agent_with_retry(
+            agent, 
+            {
+                "messages": [{"role": "user", "content": f"Use the meal-planner subagent for this task: {meal_prompt}"}],
+                "files": skills_files
+            },
+            thread_id=thread_id
+        )
         meal_text = meal_response["messages"][-1].content if meal_response.get("messages") else ""
         meal_plan = extract_json_from_response(meal_text)
         
