@@ -672,20 +672,14 @@ def load_skills() -> dict:
 
 
 def create_fitness_agent(thread_id: str = None):
-    """Create the main fitness planning agent with subagents and skills."""
+    """Create the main fitness planning agent with subagents."""
     checkpointer = MemorySaver()
     
     return create_deep_agent(
         model=DEFAULT_MODEL,
         name="fitness-coordinator",
-        skills=["./skills/"],
         checkpointer=checkpointer,
         system_prompt="""You are FitAI, an intelligent fitness and nutrition coordinator. Your job is to orchestrate the creation of personalized workout and meal plans.
-
-SKILLS AVAILABLE:
-- task-reasoning-framework: Decision logic for risk assessment and task generation
-- exercise-database: Exercise selection and injury modifications
-- nutrition-guidelines: Macro calculations and dietary restrictions
 
 CRITICAL WORKFLOW (MUST FOLLOW THIS ORDER):
 1. FIRST: Use the task-reasoner subagent to analyze the user profile
@@ -897,7 +891,6 @@ async def analyze_profile(profile: ComprehensiveProfile):
         # Create the fitness agent
         thread_id = f"analyze_{profile.user_id}_{uuid.uuid4().hex[:8]}"
         agent = create_fitness_agent(thread_id)
-        skills_files = load_skills()
         
         # Calculate BMI if not provided
         bc = profile.body_composition
@@ -1059,8 +1052,7 @@ Be extremely thorough given the comprehensive nature of this profile.
         reasoning_response = invoke_agent_with_retry(
             agent,
             {
-                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this comprehensive analysis: {reasoning_prompt}"}],
-                "files": skills_files
+                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this comprehensive analysis: {reasoning_prompt}"}]
             },
             thread_id=thread_id
         )
@@ -1143,9 +1135,6 @@ async def generate_plan(request: TextProfileRequest):
         thread_id = f"plan_{request.user_id}_{uuid.uuid4().hex[:8]}"
         agent = create_fitness_agent(thread_id)
         
-        # Load skills files
-        skills_files = load_skills()
-        
         # STEP 1: Run the Reasoning Subagent to generate task instructions
         print(f"🧠 Step 1: Running task-reasoner to generate task instructions...")
         
@@ -1169,8 +1158,7 @@ Return the task instructions as structured markdown text.
         reasoning_response = invoke_agent_with_retry(
             agent, 
             {
-                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this analysis: {reasoning_prompt}"}],
-                "files": skills_files
+                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this analysis: {reasoning_prompt}"}]
             },
             thread_id=thread_id
         )
@@ -1201,8 +1189,7 @@ Return the task instructions as structured markdown text.
         workout_response = invoke_agent_with_retry(
             agent, 
             {
-                "messages": [{"role": "user", "content": f"Use the workout-planner subagent for this task: {workout_prompt}"}],
-                "files": skills_files
+                "messages": [{"role": "user", "content": f"Use the workout-planner subagent for this task: {workout_prompt}"}]
             },
             thread_id=thread_id
         )
@@ -1252,8 +1239,7 @@ Return the task instructions as structured markdown text.
         meal_response = invoke_agent_with_retry(
             agent, 
             {
-                "messages": [{"role": "user", "content": f"Use the meal-planner subagent for this task: {meal_prompt}"}],
-                "files": skills_files
+                "messages": [{"role": "user", "content": f"Use the meal-planner subagent for this task: {meal_prompt}"}]
             },
             thread_id=thread_id
         )
@@ -1348,7 +1334,6 @@ async def correct_plan(request: CorrectionRequest):
         # Create agent for corrections
         thread_id = f"correct_{request.user_id}_{uuid.uuid4().hex[:8]}"
         agent = create_fitness_agent(thread_id)
-        skills_files = load_skills()
         
         corrected_workout = current_workout
         corrected_meal = current_meal
@@ -1376,8 +1361,7 @@ Return ONLY the corrected JSON workout plan.
             workout_response = invoke_agent_with_retry(
                 agent,
                 {
-                    "messages": [{"role": "user", "content": workout_correction_prompt}],
-                    "files": skills_files
+                    "messages": [{"role": "user", "content": workout_correction_prompt}]
                 },
                 thread_id=thread_id
             )
@@ -1410,8 +1394,7 @@ Return ONLY the corrected JSON meal plan.
             meal_response = invoke_agent_with_retry(
                 agent,
                 {
-                    "messages": [{"role": "user", "content": meal_correction_prompt}],
-                    "files": skills_files
+                    "messages": [{"role": "user", "content": meal_correction_prompt}]
                 },
                 thread_id=thread_id
             )
