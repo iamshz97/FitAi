@@ -69,7 +69,9 @@ struct RootView: View {
             }
         }
         .onChange(of: onboardingComplete) { _, complete in
+            print("🔐 [ROOT] onboardingComplete changed to: \(complete)")
             if complete {
+                print("🔐 [ROOT] Setting appState = .authenticated")
                 appState = .authenticated
             }
         }

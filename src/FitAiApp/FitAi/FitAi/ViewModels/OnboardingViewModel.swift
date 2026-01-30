@@ -322,27 +322,36 @@ final class OnboardingViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
-    
     // MARK: - Complete Onboarding
     
     func completeOnboarding() async {
+        print("🔐 [ONBOARDING] completeOnboarding() called")
         logger.info("📍 completeOnboarding() called")
         isLoading = true
         
         // Save final data
+        print("🔐 [ONBOARDING] Saving final data...")
         logger.info("🔄 Saving final data...")
         await saveProgress()
+        print("🔐 [ONBOARDING] saveProgress() completed")
         
+        // Mark onboarding complete in database
         do {
+            print("🔐 [ONBOARDING] Calling profileService.completeOnboarding()...")
             logger.info("🔄 Marking onboarding as complete...")
             try await profileService.completeOnboarding()
+            print("✅ [ONBOARDING] completeOnboarding() succeeded!")
             logger.info("✅ Onboarding completed!")
             isComplete = true
         } catch {
+            print("❌ [ONBOARDING] completeOnboarding() FAILED: \(error)")
+            print("❌ [ONBOARDING] Error type: \(type(of: error))")
+            print("❌ [ONBOARDING] Error description: \(error.localizedDescription)")
             logger.error("❌ completeOnboarding failed: \(error.localizedDescription)")
-            errorMessage = error.localizedDescription
+            errorMessage = "Failed to complete onboarding: \(error.localizedDescription)"
         }
         
         isLoading = false
+        print("🔐 [ONBOARDING] isLoading = false, isComplete = \(isComplete)")
     }
 }

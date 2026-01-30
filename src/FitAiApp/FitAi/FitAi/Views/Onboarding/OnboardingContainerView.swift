@@ -55,7 +55,9 @@ struct OnboardingContainerView: View {
             await viewModel.loadProfile()
         }
         .onChange(of: viewModel.isComplete) { _, complete in
+            print("🔐 [CONTAINER] viewModel.isComplete changed to: \(complete)")
             if complete {
+                print("🔐 [CONTAINER] Setting isOnboardingComplete = true")
                 isOnboardingComplete = true
             }
         }

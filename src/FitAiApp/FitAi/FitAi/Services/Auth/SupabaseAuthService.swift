@@ -30,30 +30,54 @@ final class SupabaseAuthService: AuthService {
     // MARK: - AuthService Implementation
     
     func signUp(email: String, password: String) async throws -> AuthUser {
+        print("🔐 [AUTH] signUp() called for email: \(email)")
+        
         do {
             // First, sign up the user
+            print("🔐 [AUTH] Calling client.auth.signUp...")
             let response = try await client.auth.signUp(
                 email: email,
                 password: password
             )
+            print("🔐 [AUTH] signUp response received - user id: \(response.user.id)")
+            print("🔐 [AUTH] signUp session exists: \(response.session != nil)")
+            if let session = response.session {
+                print("🔐 [AUTH] signUp session access token: \(session.accessToken.prefix(20))...")
+                print("🔐 [AUTH] signUp session expires at: \(session.expiresAt)")
+            }
             
             // Supabase may not establish a session immediately after sign up
             // If email verification is disabled, we can sign in right away
             // Try to sign in to establish the session
+            print("🔐 [AUTH] Attempting auto sign-in after signup...")
             do {
                 let session = try await client.auth.signIn(
                     email: email,
                     password: password
                 )
-                print("✅ Sign-up + auto sign-in successful")
+                print("✅ [AUTH] Auto sign-in successful!")
+                print("🔐 [AUTH] Session user id: \(session.user.id)")
+                print("🔐 [AUTH] Session access token: \(session.accessToken.prefix(20))...")
+                
+                // Verify session is now available
+                do {
+                    let currentSession = try await client.auth.session
+                    print("🔐 [AUTH] Verified - current session user: \(currentSession.user.id)")
+                } catch {
+                    print("❌ [AUTH] WARNING: Session not immediately available after sign-in: \(error)")
+                }
+                
                 return mapToAuthUser(session.user)
             } catch {
                 // If sign-in fails (e.g., email verification required), 
                 // fall back to the sign-up response
-                print("⚠️ Auto sign-in after signup failed: \(error.localizedDescription)")
+                print("⚠️ [AUTH] Auto sign-in failed: \(error.localizedDescription)")
+                print("⚠️ [AUTH] Full error: \(error)")
                 return mapToAuthUser(response.user)
             }
         } catch {
+            print("❌ [AUTH] signUp failed: \(error.localizedDescription)")
+            print("❌ [AUTH] Full error: \(error)")
             throw mapError(error)
         }
     }

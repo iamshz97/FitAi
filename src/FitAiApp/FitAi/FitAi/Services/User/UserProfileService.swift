@@ -70,14 +70,23 @@ final class SupabaseUserProfileService: UserProfileService {
     
     private func getCurrentUserId() async throws -> UUID {
         logger.info("📍 Getting current user ID...")
+        print("🔐 [PROFILE] Attempting to get auth session...")
         
-        guard let session = try? await client.auth.session else {
+        do {
+            let session = try await client.auth.session
+            print("🔐 [PROFILE] ✅ Got session!")
+            print("🔐 [PROFILE] User ID: \(session.user.id)")
+            print("🔐 [PROFILE] Access token: \(session.accessToken.prefix(20))...")
+            print("🔐 [PROFILE] Expires at: \(session.expiresAt)")
+            logger.info("✅ Got user ID: \(session.user.id.uuidString)")
+            return session.user.id
+        } catch {
+            print("❌ [PROFILE] Failed to get session: \(error)")
+            print("❌ [PROFILE] Error type: \(type(of: error))")
+            print("❌ [PROFILE] Error description: \(error.localizedDescription)")
             logger.error("❌ No auth session found - user not authenticated")
             throw UserProfileError.notAuthenticated
         }
-        
-        logger.info("✅ Got user ID: \(session.user.id.uuidString)")
-        return session.user.id
     }
     
     // MARK: - Fetch Profile
