@@ -62,8 +62,9 @@ app.add_middleware(
 
 class UserProfile(BaseModel):
     """User profile data for generating personalized plans."""
+    user_id: str = Field(..., description="Unique user identifier")
     age: int = Field(..., ge=13, le=100, description="User's age in years")
-    gender: Literal["male", "female", "other"] = Field(..., description="User's gender")
+    gender: Literal["male", "female"] = Field(..., description="User's gender")
     height: float = Field(..., gt=0, description="Height in cm")
     weight: float = Field(..., gt=0, description="Weight in kg")
     goal: Literal["weight_loss", "muscle_gain", "maintenance", "endurance", "flexibility", "general_fitness"] = Field(
@@ -135,6 +136,7 @@ class MealPlan(BaseModel):
 class PlanResponse(BaseModel):
     """Response model for generated plans."""
     id: str
+    user_id: str
     user_profile: UserProfile
     workout_plan: dict
     meal_plan: dict
@@ -365,11 +367,18 @@ def extract_json_from_response(response_text: str) -> dict:
     return {"raw_response": response_text}
 
 
-async def save_to_supabase(plan_id: str, user_profile: dict, workout_plan: dict, meal_plan: dict) -> dict:
-    """Save the generated plans to Supabase."""
+async def save_to_supabase(
+    plan_id: str, 
+    user_id: str,
+    user_profile: dict, 
+    workout_plan: dict, 
+    meal_plan: dict
+) -> dict:
+    """Save the generated plans to Supabase with user_id separate."""
     try:
         data = {
             "id": plan_id,
+            "user_id": user_id,
             "user_profile": json.dumps(user_profile),
             "workout_plan": json.dumps(workout_plan),
             "meal_plan": json.dumps(meal_plan),
@@ -490,6 +499,7 @@ Return ONLY a valid JSON object.
         # Save to Supabase
         await save_to_supabase(
             plan_id=plan_id,
+            user_id=profile.user_id,
             user_profile=profile.model_dump(),
             workout_plan=workout_plan,
             meal_plan=meal_plan
@@ -497,6 +507,7 @@ Return ONLY a valid JSON object.
         
         return PlanResponse(
             id=plan_id,
+            user_id=profile.user_id,
             user_profile=profile,
             workout_plan=workout_plan,
             meal_plan=meal_plan,
@@ -520,6 +531,7 @@ async def get_plan(plan_id: str):
         plan = result.data[0]
         return {
             "id": plan["id"],
+            "user_id": plan["user_id"],
             "user_profile": json.loads(plan["user_profile"]),
             "workout_plan": json.loads(plan["workout_plan"]),
             "meal_plan": json.loads(plan["meal_plan"]),
@@ -532,14 +544,17 @@ async def get_plan(plan_id: str):
 
 
 @app.get("/plans")
-async def list_plans(limit: int = 10, offset: int = 0):
-    """List all generated plans with pagination."""
+async def list_plans(limit: int = 10, offset: int = 0, user_id: Optional[str] = None):
+    """List all generated plans with pagination. Optionally filter by user_id."""
     try:
-        result = supabase.table("fitness_plans")\
-            .select("id, created_at")\
-            .order("created_at", desc=True)\
-            .range(offset, offset + limit - 1)\
-            .execute()
+        query = supabase.table("fitness_plans")\
+            .select("id, user_id, goal, created_at")\
+            .order("created_at", desc=True)
+        
+        if user_id:
+            query = query.eq("user_id", user_id)
+        
+        result = query.range(offset, offset + limit - 1).execute()
         
         return {
             "plans": result.data,
