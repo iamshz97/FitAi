@@ -1,3 +1,5 @@
+<img src="https://r2cdn.perplexity.ai/pplx-full-logo-primary-dark%402x.png" style="height:64px;margin-right:32px"/>
+
 # Act as a digital health systems architect, exercise science researcher, and AI decision-system analyst.
 
 I am designing a fitness / health lifestyle planning application.
@@ -468,3 +470,372 @@ END IF
 
 
 ***
+
+## 5. ABSTRACT SYSTEM MODEL
+
+### 5.1 Task Generation Engine Architecture
+
+```python
+class PersonaTaskGenerator:
+    def generate_tasks(self, persona):
+        tasks = []
+        
+        # LAYER 1: Mandatory Guardrails (Always Run First)
+        tasks.append(self.safety_screening(persona))
+        
+        if self.requires_medical_clearance(persona):
+            tasks.append(self.medical_clearance_workflow(persona))
+        
+        # LAYER 2: Risk-Stratified Tasks (Conditional)
+        risk_level = self.calculate_risk_score(persona)
+        
+        if risk_level >= MODERATE:
+            tasks.append(self.medication_interaction_analysis(persona))
+            tasks.append(self.monitoring_protocol(persona))
+        
+        if risk_level >= HIGH:
+            tasks.append(self.physician_coordination_workflow(persona))
+            tasks.append(self.exercise_supervision_recommendation(persona))
+        
+        # LAYER 3: Core Programming (Universal)
+        tasks.append(self.exercise_prescription(persona))
+        tasks.append(self.nutrition_prescription(persona))
+        
+        # LAYER 4: Constraint-Driven Adaptations (Conditional)
+        if persona.time_availability < 3_days:
+            tasks.append(self.time_efficient_programming(persona))
+        
+        if persona.equipment == "minimal":
+            tasks.append(self.equipment_substitutions(persona))
+        
+        # LAYER 5: Behavioral Interventions (Triggered)
+        if persona.adherence_history < 0.7:
+            tasks.append(self.adherence_enhancement(persona))
+        
+        if persona.weight_cycling_history:
+            tasks.append(self.psychological_support(persona))
+        
+        # LAYER 6: Monitoring & Adaptation (Ongoing)
+        tasks.append(self.plateau_detection_logic(persona))
+        tasks.append(self.injury_management_protocol(persona))
+        
+        # LAYER 7: App Algorithm Integration (Meta)
+        tasks.append(self.automation_decision_tree(persona))
+        
+        return tasks
+```
+
+
+### 5.2 Decision Rules (If-Then Logic)
+
+**SAFETY GUARDRAILS (Deterministic):**
+
+```
+IF (chest_pain OR palpitations OR syncope during exercise):
+    STOP exercise immediately
+    CALL emergency services if symptoms persist >5 min
+    LOCK program until physician clearance
+
+IF (PAR-Q+ positive):
+    REQUIRE medical clearance before moderate-vigorous exercise
+
+IF (BMI >35 AND sedentary AND planning vigorous exercise):
+    REQUIRE physician clearance (ACSM High Risk)
+
+IF (takes medication for CVD/metabolic/renal disease):
+    ANALYZE drug-exercise interactions
+    MODIFY intensity prescription (RPE vs HR zones)
+```
+
+**ADAPTIVE LAYERS (Triggered by Conditions):**
+
+```
+IF (weight unchanged for 3 consecutive weeks AND adherence >80%):
+    TRIGGER plateau_intervention_workflow()
+    OPTIONS:
+        - Diet break (2 weeks maintenance)
+        - Increase cardio (add 60-90 min/week)
+        - Reduce calories (by 100-200 kcal/day)
+    PRESENT prioritized options based on context
+
+IF (adherence <60% for 2 consecutive weeks):
+    TRIGGER adherence_recovery_protocol()
+    DIAGNOSE barriers (environmental, psychological, program)
+    SIMPLIFY program (reduce frequency, duration, or complexity)
+    INCREASE check-in frequency
+
+IF (exercise_related_injury):
+    ASSESS severity (pain scale, ROM, function)
+    IF (red_flags present): // severe pain, swelling, instability
+        REFER to MD/PT immediately
+        LOCK affected exercises
+    ELSE:
+        MODIFY program (exercise substitutions, load reduction)
+        MONITOR pain (keep ≤3/10 during exercise)
+        PROVIDE return-to-training criteria
+```
+
+
+***
+
+## 6. IMPLICATIONS FOR AI AGENT OR APP
+
+### 6.1 Task Automation Suitability Matrix
+
+| Task Type | Deterministic (Rule-Based) | AI Reasoning Suitable | Never Fully Automate | Implementation Notes |
+| :-- | :-- | :-- | :-- | :-- |
+| **PAR-Q+ Screening** | ✓ | ✗ | ✗ | Simple conditional logic: IF answer = "Yes" THEN flag for clearance |
+| **ACSM Risk Stratification** | ✓ | ✗ | ✗ | Count risk factors, apply algorithm (Low/Mod/High risk) |
+| **Medical Clearance Letter Generation** | ✓ | Partial (template population) | MD signature required | Auto-populate demographics, proposed program, but MD must review |
+| **Exercise Prescription (Initial)** | ✓ | ✗ | ✗ | FITT-VP parameters based on persona: IF sedentary THEN 2-3 days, light-moderate, 20-30 min |
+| **Nutrition Prescription (Initial)** | ✓ | ✗ | ✗ | TDEE calculation (Mifflin-St Jeor), deficit/surplus based on goal |
+| **Plateau Diagnosis** | ✓ | ✗ | ✗ | Weight trend analysis: IF weight Δ <0.5 kg over 3 weeks AND adherence >80% THEN plateau |
+| **Plateau Intervention Selection** | ✗ | ✓ (Reasoning) | Partial (expert review for edge cases) | AI can prioritize interventions based on context (stress level, sleep, adherence), but complex cases need human |
+| **Injury Assessment (Red Flags)** | ✓ | ✗ | ✓ (Liability) | Red flag checklist (severe pain, instability, neurological symptoms) → auto-refer to MD/PT, but human must confirm |
+| **Exercise Modification Post-Injury** | ✗ | ✓ (Reasoning) | Partial (PT consultation for complex) | AI can suggest alternatives (swap squats for leg press), but PT needed for complex cases |
+| **Adherence Barrier Diagnosis** | ✗ | ✓ (Reasoning) | ✗ | AI analyzes user feedback (text analysis: "too tired", "no time") → categorize barrier type |
+| **Motivational Interviewing** | ✗ | ✓ (LLM) | Partial (human coach for crisis) | LLM can conduct conversational coaching, but escalate to human for severe motivation loss |
+| **Medication Interaction Warnings** | ✓ | ✗ | ✓ (Liability) | Database lookup: IF Metformin THEN warn about hypoglycemia + educate, but pharmacist/MD must review |
+| **Program Progression Decision** | ✗ | ✓ (Reasoning) | Partial (human oversight) | AI can analyze performance trends, suggest weight increases, but human reviews major changes |
+
+### 6.2 Adaptive System Workflows
+
+#### **A. Adaptive Onboarding**
+
+```
+USER REGISTRATION
+    ↓
+PAR-Q+ SCREENING (Automated)
+    ↓
+IF (PAR-Q+ positive):
+    → MEDICAL CLEARANCE WORKFLOW
+       - Generate clearance letter template
+       - Lock program until clearance uploaded
+       - Verify clearance document (manual or AI OCR)
+    ↓
+RISK STRATIFICATION (Automated)
+    - Count CVD risk factors
+    - Classify: Low / Moderate / High
+    ↓
+IF (Moderate/High Risk):
+    → ENHANCED MONITORING
+       - Require BP/glucose logs (if applicable)
+       - Set symptom-based stop thresholds
+       - Schedule early check-in (Week 2 vs Week 4)
+    ↓
+CONSTRAINT ASSESSMENT (Automated)
+    - Time availability
+    - Equipment access
+    - Psychological barriers
+    ↓
+INITIAL PROGRAM GENERATION (Automated + AI)
+    - Base template from persona match
+    - Modify for constraints (time, equipment)
+    - Adjust for risk level (intensity cap)
+    - Personalize for preferences (exercise type)
+    ↓
+USER REVIEW & COMMITMENT
+    - Present program
+    - Set expectations (realistic outcomes)
+    - Obtain informed consent
+```
+
+
+#### **B. Ongoing Plan Adjustment**
+
+```
+WEEKLY DATA COLLECTION
+    - Body weight
+    - Adherence (workouts completed)
+    - Subjective feedback (energy, mood, pain)
+    - Performance (weights lifted, reps achieved)
+    ↓
+AUTOMATED ANALYSIS
+    ↓
+IF (weight plateau detected): // <0.5 kg change over 3 weeks
+    → PLATEAU INTERVENTION WORKFLOW
+       - AI reasons through context (stress, sleep, adherence)
+       - Prioritizes interventions (diet break vs cardio vs calorie reduction)
+       - Presents options to user with rationale
+       - User selects, program adjusts
+    ↓
+IF (adherence drop detected): // <70% completion for 2 weeks
+    → ADHERENCE RECOVERY WORKFLOW
+       - AI analyzes logged barriers (text, check-ins)
+       - Categorizes barriers (time, motivation, program difficulty)
+       - Suggests modifications (reduce frequency, simplify)
+       - Increases check-in frequency, motivational messaging
+    ↓
+IF (performance stagnation): // No weight increases for 3 weeks
+    → PROGRESSION ADJUSTMENT
+       - AI suggests deload week OR volume increase
+       - Explains rationale
+       - Adjusts program
+    ↓
+IF (injury reported):
+    → INJURY MANAGEMENT WORKFLOW
+       - Red flag screening (automated checklist)
+       - IF red flags: Lock program, refer to MD/PT
+       - ELSE: AI suggests exercise modifications
+       - Monitor pain scale, ROM
+       - Provide return-to-training criteria
+```
+
+
+#### **C. Safety Escalation Workflows**
+
+```
+DURING-EXERCISE SYMPTOM MONITORING
+    ↓
+USER REPORTS SYMPTOM (chest pain, dizziness, severe SOB)
+    ↓
+AUTOMATED RED FLAG ASSESSMENT
+    ↓
+IF (red flag symptom):
+    → IMMEDIATE STOP PROTOCOL
+       - Display: "STOP EXERCISE IMMEDIATELY"
+       - Prompt: "Are symptoms resolving within 5 minutes?"
+       - IF NO: "Call emergency services (911)"
+       - IF YES: "Rest, seek medical evaluation within 24 hours"
+       - LOCK program until clearance uploaded
+       - NOTIFY human coach (if app has support team)
+    ↓
+DOCUMENT INCIDENT
+    - Timestamp, symptom type, duration, context
+    - Store for physician review
+    ↓
+GENERATE PHYSICIAN REFERRAL LETTER
+    - Auto-populate symptom details
+    - Request specific clearance (return-to-exercise protocol)
+    ↓
+USER UPLOADS CLEARANCE
+    - AI/human verifies document
+    - IF cleared: Unlock program with modifications
+    - IF restrictions noted: Apply restrictions to program
+```
+
+
+### 6.3 Human-in-the-Loop Requirements
+
+**NEVER FULLY AUTOMATE (Liability + Complexity):**
+
+1. **Medical diagnosis** (e.g., "Is this chest pain cardiac or musculoskeletal?") → Refer to MD
+2. **Injury diagnosis** (e.g., "Is this meniscus tear or just soreness?") → Refer to PT/MD
+3. **Medication adjustment recommendations** (e.g., "Reduce Metformin dose") → Physician only
+4. **Crisis intervention** (e.g., severe depression, disordered eating) → Refer to mental health professional
+5. **Legal/liability decisions** (e.g., "Train client despite risk?") → Human coach decision
+
+**AI-ASSISTED WITH HUMAN OVERSIGHT:**
+
+1. **Plateau intervention selection** → AI suggests, human reviews (especially for complex cases)
+2. **Program progression** → AI suggests load increases, human verifies form is adequate
+3. **Adherence barrier diagnosis** → AI analyzes text, human coaches conversation
+4. **Exercise modifications post-injury** → AI suggests alternatives, PT reviews for complex cases
+
+**FULLY AUTOMATED (Safe + Effective):**
+
+1. **PAR-Q+ screening** → Simple conditional logic
+2. **Risk stratification** → Count factors, apply ACSM algorithm
+3. **Initial program generation** → Template-based with parameter substitutions
+4. **TDEE/macro calculations** → Mathematical formulas
+5. **Plateau detection** → Weight trend analysis (statistical)
+6. **Workout logging \& tracking** → Data collection and visualization
+
+***
+
+## 7. KEY INSIGHTS FOR SYSTEM DESIGN
+
+### 7.1 The "Safety-First" Architecture
+
+Every task generation workflow MUST pass through safety filters before proceeding to optimization:
+
+```
+USER INPUT
+    ↓
+[SAFETY FILTER] ← ALWAYS FIRST
+    ↓
+[MEDICAL FILTER] ← IF safety flags triggered
+    ↓
+[ADHERENCE FILTER] ← Realistic > Optimal
+    ↓
+[OPTIMIZATION LAYER] ← Evidence-based best practices
+    ↓
+[PERSONALIZATION LAYER] ← User preferences
+    ↓
+OUTPUT (Program)
+```
+
+
+### 7.2 The "Additive Risk" Model
+
+Tasks are activated based on **cumulative risk score**, not single parameters:
+
+- 0-1 risk factors → Minimal tasks (basic programming)
+- 2-3 risk factors → Moderate tasks (medical clearance recommended, monitoring)
+- 4+ risk factors OR diagnosed disease → High tasks (clearance mandatory, supervision, medication analysis)
+
+
+### 7.3 The "Intervention Hierarchy" Pattern
+
+When problems arise (plateau, injury, adherence drop), the system uses **prioritized intervention cascades**:
+
+**Example: Plateau Intervention Hierarchy**
+
+1. **First:** Lifestyle factors (improve sleep, reduce stress)
+2. **Second:** Diet break (restore metabolic rate)
+3. **Third:** Increase activity (NEAT, cardio)
+4. **Fourth:** Reduce calories (only if others ineffective)
+5. **Last:** Revise goals (shift to maintenance/recomp)
+
+This prevents aggressive interventions when conservative ones suffice.
+
+### 7.4 The "Context-Aware Reasoning" Requirement
+
+Simple rule-based systems fail for:
+
+- Plateau interventions (requires context: stress, sleep, adherence, training history)
+- Adherence barriers (requires NLP: analyze user feedback)
+- Exercise modifications (requires biomechanics reasoning: "Why does this hurt? What alternative preserves stimulus?")
+
+**Solution:** Hybrid architecture
+
+- **Rules** for safety/medical (deterministic, no room for error)
+- **AI reasoning** for optimization/behavioral (contextual, nuanced)
+
+***
+
+## FINAL SUMMARY: Task Generation Logic Formula
+
+```
+TASKS = f(PERSONA_PARAMETERS, RISK_SCORE, CONSTRAINTS, GOALS, CONTEXT)
+
+WHERE:
+    PERSONA_PARAMETERS = {age, sex, BMI, body_fat, activity_level, medical_history, medications}
+    RISK_SCORE = count(CVD_risk_factors) + disease_severity_multiplier
+    CONSTRAINTS = {time, equipment, environment, psychological_barriers}
+    GOALS = {weight_change, performance, health_markers}
+    CONTEXT = {adherence_history, progress_trend, current_stress, sleep_quality}
+
+TASKS ACTIVATED:
+    1. Safety & Medical (if RISK_SCORE >= threshold)
+    2. Physiological Optimization (always)
+    3. Constraint Adaptations (if CONSTRAINTS present)
+    4. Behavioral Interventions (if adherence_risk OR psychological_barriers)
+    5. Progression & Plateau (if triggered by CONTEXT)
+    6. App Algorithm (always, for meta-design)
+```
+
+This logic can be translated into:
+
+- Decision trees (for deterministic tasks)
+- LLM prompts (for reasoning tasks)
+- Database queries (for medical interaction lookups)
+- Statistical models (for plateau detection, outcome prediction)
+
+The key insight: **The system doesn't just generate tasks — it dynamically prioritizes them based on a safety-first, context-aware, evidence-constrained hierarchy.**
+<span style="display:none">[^1]</span>
+
+<div align="center">⁂</div>
+
+[^1]: persona-prompts.md
+
