@@ -17,6 +17,7 @@ struct PersonalInfoPageView: View {
     @ObservedObject var viewModel: OnboardingViewModel
     @State private var showHeightPicker = false
     @State private var showWeightPicker = false
+    @State private var showBodyFatPicker = false
     
     // MARK: - Body
     
@@ -37,6 +38,9 @@ struct PersonalInfoPageView: View {
                 
                 // BMI Display
                 bmiSection
+                
+                // Body Fat Percentage
+                bodyFatSection
                 
                 Spacer(minLength: 100)
             }
@@ -221,6 +225,76 @@ struct PersonalInfoPageView: View {
         }
     }
     
+    // MARK: - Body Fat Section
+    
+    private var bodyFatSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+            HStack {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    HStack(spacing: AppTheme.Spacing.xs) {
+                        Text("BODY FAT")
+                            .font(AppTheme.Typography.label())
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                        
+                        if viewModel.isBodyFatOverridden {
+                            Text("(custom)")
+                                .font(AppTheme.Typography.labelSmall())
+                                .foregroundStyle(AppTheme.Colors.accent)
+                        } else {
+                            Text("(estimated)")
+                                .font(AppTheme.Typography.labelSmall())
+                                .foregroundStyle(AppTheme.Colors.textTertiary)
+                        }
+                    }
+                    
+                    HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.xs) {
+                        Text(String(format: "%.1f", viewModel.bodyFatPercentage))
+                            .font(AppTheme.Typography.statMedium())
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                        
+                        Text("%")
+                            .font(AppTheme.Typography.body())
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                    }
+                }
+                
+                Spacer()
+                
+                // Edit button
+                Button(action: {
+                    showBodyFatPicker = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pencil")
+                        Text("Edit")
+                    }
+                    .font(AppTheme.Typography.captionMedium())
+                    .foregroundStyle(AppTheme.Colors.accent)
+                    .padding(.horizontal, AppTheme.Spacing.md)
+                    .padding(.vertical, AppTheme.Spacing.sm)
+                    .background(AppTheme.Colors.accent.opacity(0.15))
+                    .cornerRadius(AppTheme.CornerRadius.small)
+                }
+            }
+            
+            // DEXA tip
+            Text("💡 For accurate results, use a DEXA scan at your gym")
+                .font(.system(size: 10))
+                .foregroundStyle(AppTheme.Colors.textTertiary)
+        }
+        .padding(AppTheme.Spacing.lg)
+        .background(AppTheme.Colors.cardBackground)
+        .cornerRadius(AppTheme.CornerRadius.large)
+        .sheet(isPresented: $showBodyFatPicker) {
+            BodyFatPickerSheet(
+                bodyFatOverride: $viewModel.bodyFatOverride,
+                estimatedValue: viewModel.estimatedBodyFat
+            )
+            .presentationDetents([.height(350)])
+            .presentationDragIndicator(.visible)
+        }
+    }
+    
     // MARK: - Bottom Button
     
     private var bottomButton: some View {
@@ -367,6 +441,77 @@ struct WeightPickerSheet: View {
         }
         .padding(AppTheme.Spacing.xl)
         .appBackground()
+    }
+}
+
+// MARK: - Body Fat Picker Sheet
+
+struct BodyFatPickerSheet: View {
+    @Binding var bodyFatOverride: Double?
+    let estimatedValue: Double
+    @Environment(\.dismiss) private var dismiss
+    
+    @State private var sliderValue: Double = 20
+    
+    var body: some View {
+        VStack(spacing: AppTheme.Spacing.lg) {
+            Text("Body Fat Percentage")
+                .font(AppTheme.Typography.headline())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+            
+            // Current value display
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(format: "%.1f", sliderValue))
+                    .font(AppTheme.Typography.displayMedium())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                
+                Text("%")
+                    .font(AppTheme.Typography.headline())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+            }
+            
+            // Slider
+            VStack(spacing: AppTheme.Spacing.sm) {
+                Slider(value: $sliderValue, in: 5...50, step: 0.5)
+                    .accentColor(AppTheme.Colors.accent)
+                
+                HStack {
+                    Text("5%")
+                        .font(AppTheme.Typography.caption())
+                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                    Spacer()
+                    Text("50%")
+                        .font(AppTheme.Typography.caption())
+                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                }
+            }
+            
+            // Reset to estimate button
+            Button(action: {
+                sliderValue = estimatedValue
+                bodyFatOverride = nil
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.counterclockwise")
+                    Text("Reset to Estimate (\(String(format: "%.1f", estimatedValue))%)")
+                }
+                .font(AppTheme.Typography.caption())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+            }
+            
+            Spacer()
+            
+            Button("Done") {
+                bodyFatOverride = sliderValue
+                dismiss()
+            }
+            .buttonStyle(AccentButtonStyle())
+        }
+        .padding(AppTheme.Spacing.xl)
+        .appBackground()
+        .onAppear {
+            sliderValue = bodyFatOverride ?? estimatedValue
+        }
     }
 }
 

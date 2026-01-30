@@ -203,6 +203,10 @@ final class SupabaseUserProfileService: UserProfileService {
             updateData["bmi"] = AnyEncodable(bmi)
             logger.debug("  bmi: \(bmi)")
         }
+        if let bodyFat = profile.bodyFatPercentage {
+            updateData["body_fat_percentage"] = AnyEncodable(bodyFat)
+            logger.debug("  body_fat_percentage: \(bodyFat)")
+        }
         
         // Page 2 fields
         if let goal = profile.goal {

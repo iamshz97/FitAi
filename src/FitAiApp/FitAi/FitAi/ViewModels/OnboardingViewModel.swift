@@ -46,6 +46,7 @@ final class OnboardingViewModel: ObservableObject {
     @Published var sexAtBirth: SexAtBirth?
     @Published var heightCm: Double = 170
     @Published var weightKg: Double = 70
+    @Published var bodyFatOverride: Double? = nil // User override for body fat
     
     // Page 2: Preferences
     @Published var goal: FitnessGoal?
@@ -86,6 +87,28 @@ final class OnboardingViewModel: ObservableObject {
         case 25..<30: return "Overweight"
         default: return "Obese"
         }
+    }
+    
+    /// Estimated body fat percentage based on BMI (rough estimation)
+    /// Uses the Deurenberg formula: BF% = (1.20 × BMI) + (0.23 × Age) − (10.8 × Sex) − 5.4
+    /// where Sex = 1 for males, 0 for females
+    var estimatedBodyFat: Double {
+        let bmi = calculatedBMI
+        let age = Double(Calendar.current.component(.year, from: Date()) - birthYear)
+        let sexFactor: Double = (sexAtBirth == .male) ? 1.0 : 0.0
+        
+        let bodyFat = (1.20 * bmi) + (0.23 * age) - (10.8 * sexFactor) - 5.4
+        return max(5, min(50, bodyFat)) // Clamp between 5-50%
+    }
+    
+    /// Returns override value if set, otherwise estimated value
+    var bodyFatPercentage: Double {
+        bodyFatOverride ?? estimatedBodyFat
+    }
+    
+    /// Whether the body fat value is user-overridden
+    var isBodyFatOverridden: Bool {
+        bodyFatOverride != nil
     }
     
     // MARK: - Initialization
@@ -228,6 +251,7 @@ final class OnboardingViewModel: ObservableObject {
         updatedProfile.heightCm = heightCm
         updatedProfile.weightKg = weightKg
         updatedProfile.bmi = calculatedBMI
+        updatedProfile.bodyFatPercentage = bodyFatPercentage
         updatedProfile.goal = goal
         updatedProfile.activityLevel = activityLevel
         updatedProfile.daysPerWeek = daysPerWeek

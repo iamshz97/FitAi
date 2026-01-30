@@ -24,6 +24,7 @@ struct UserProfile: Codable, Equatable {
     var heightCm: Double?
     var weightKg: Double?
     var bmi: Double?
+    var bodyFatPercentage: Double?
     
     // Page 2: Fitness Preferences
     var goal: FitnessGoal?
@@ -49,6 +50,7 @@ struct UserProfile: Codable, Equatable {
         case heightCm = "height_cm"
         case weightKg = "weight_kg"
         case bmi
+        case bodyFatPercentage = "body_fat_percentage"
         case goal
         case activityLevel = "activity_level"
         case daysPerWeek = "days_per_week"
