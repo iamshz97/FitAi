@@ -31,12 +31,28 @@ final class SupabaseAuthService: AuthService {
     
     func signUp(email: String, password: String) async throws -> AuthUser {
         do {
+            // First, sign up the user
             let response = try await client.auth.signUp(
                 email: email,
                 password: password
             )
             
-            return mapToAuthUser(response.user)
+            // Supabase may not establish a session immediately after sign up
+            // If email verification is disabled, we can sign in right away
+            // Try to sign in to establish the session
+            do {
+                let session = try await client.auth.signIn(
+                    email: email,
+                    password: password
+                )
+                print("✅ Sign-up + auto sign-in successful")
+                return mapToAuthUser(session.user)
+            } catch {
+                // If sign-in fails (e.g., email verification required), 
+                // fall back to the sign-up response
+                print("⚠️ Auto sign-in after signup failed: \(error.localizedDescription)")
+                return mapToAuthUser(response.user)
+            }
         } catch {
             throw mapError(error)
         }
