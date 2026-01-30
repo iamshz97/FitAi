@@ -12,6 +12,9 @@ import Foundation
 /// Represents a user's profile including onboarding data and preferences.
 struct UserProfile: Codable, Equatable {
     let id: UUID
+    var email: String?
+    var firstName: String?
+    var lastName: String?
     var onboardingCompleted: Bool
     var onboardingStep: Int
     
@@ -36,6 +39,9 @@ struct UserProfile: Codable, Equatable {
     
     enum CodingKeys: String, CodingKey {
         case id
+        case email
+        case firstName = "first_name"
+        case lastName = "last_name"
         case onboardingCompleted = "onboarding_completed"
         case onboardingStep = "onboarding_step"
         case birthYear = "birth_year"

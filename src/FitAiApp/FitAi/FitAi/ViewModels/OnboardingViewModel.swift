@@ -7,6 +7,11 @@
 
 import Foundation
 import Combine
+import os.log
+
+// MARK: - Logger
+
+private let logger = Logger(subsystem: "com.fitai.app", category: "OnboardingViewModel")
 
 // MARK: - Onboarding Step
 
@@ -87,23 +92,29 @@ final class OnboardingViewModel: ObservableObject {
     
     init(profileService: UserProfileService) {
         self.profileService = profileService
+        logger.info("🟢 OnboardingViewModel initialized")
     }
     
     // MARK: - Load Profile
     
     func loadProfile() async {
+        logger.info("📍 loadProfile() called")
         isLoading = true
         errorMessage = nil
         
         do {
+            logger.info("🔄 Fetching existing profile...")
             if let existingProfile = try await profileService.fetchProfile() {
+                logger.info("✅ Found existing profile - step: \(existingProfile.onboardingStep)")
                 profile = existingProfile
                 restoreFromProfile(existingProfile)
             } else {
-                // Create new profile
+                logger.info("ℹ️ No profile found - creating new one...")
                 profile = try await profileService.createProfile()
+                logger.info("✅ New profile created")
             }
         } catch {
+            logger.error("❌ loadProfile failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
         
@@ -113,9 +124,12 @@ final class OnboardingViewModel: ObservableObject {
     // MARK: - Restore from Profile
     
     private func restoreFromProfile(_ profile: UserProfile) {
+        logger.info("📍 Restoring UI state from profile...")
+        
         // Set current step
         if let step = OnboardingStep(rawValue: profile.onboardingStep) {
             currentStep = step
+            logger.info("  Restored step: \(step.rawValue)")
         }
         
         // Page 1
@@ -140,27 +154,34 @@ final class OnboardingViewModel: ObservableObject {
             minutesPerSession = minutes
         }
         equipmentContext = profile.equipmentContext
+        
+        logger.info("✅ UI state restored")
     }
     
     // MARK: - Navigation
     
     func nextStep() async {
+        logger.info("📍 nextStep() called - current step: \(self.currentStep.rawValue)")
+        
         guard let nextStep = OnboardingStep(rawValue: currentStep.rawValue + 1) else {
-            // Final step - complete onboarding
+            logger.info("ℹ️ No next step - completing onboarding")
             await completeOnboarding()
             return
         }
         
         // Save current step data
+        logger.info("🔄 Saving progress before moving to step \(nextStep.rawValue)...")
         await saveProgress()
         
         // Move to next step
         currentStep = nextStep
+        logger.info("➡️ Moved to step: \(nextStep.rawValue)")
         
         // Update step in database
         do {
             try await profileService.updateOnboardingStep(nextStep.rawValue)
         } catch {
+            logger.error("❌ Failed to update step in DB: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -170,12 +191,36 @@ final class OnboardingViewModel: ObservableObject {
             return
         }
         currentStep = prevStep
+        logger.info("⬅️ Moved back to step: \(prevStep.rawValue)")
     }
     
     // MARK: - Save Progress
     
     private func saveProgress() async {
-        guard var updatedProfile = profile else { return }
+        logger.info("📍 saveProgress() called")
+        
+        // Defensive: if profile is nil, try to load/create it
+        if profile == nil {
+            logger.warning("⚠️ Profile is nil - attempting to load/create...")
+            do {
+                if let existingProfile = try await profileService.fetchProfile() {
+                    profile = existingProfile
+                    logger.info("✅ Loaded existing profile")
+                } else {
+                    profile = try await profileService.createProfile()
+                    logger.info("✅ Created new profile")
+                }
+            } catch {
+                logger.error("❌ Failed to load/create profile: \(error.localizedDescription)")
+                errorMessage = error.localizedDescription
+                return
+            }
+        }
+        
+        guard var updatedProfile = profile else {
+            logger.error("❌ Still no profile to update!")
+            return
+        }
         
         // Update with current values
         updatedProfile.birthYear = birthYear
@@ -190,10 +235,16 @@ final class OnboardingViewModel: ObservableObject {
         updatedProfile.equipmentContext = equipmentContext
         updatedProfile.onboardingStep = currentStep.rawValue
         
+        logger.info("🔄 Calling profileService.updateProfile()...")
+        logger.info("  Data: birthYear=\(self.birthYear), sex=\(self.sexAtBirth?.rawValue ?? "nil"), height=\(self.heightCm), weight=\(self.weightKg)")
+        logger.info("  Data: goal=\(self.goal?.rawValue ?? "nil"), activity=\(self.activityLevel?.rawValue ?? "nil"), equipment=\(self.equipmentContext?.rawValue ?? "nil")")
+        
         do {
             try await profileService.updateProfile(updatedProfile)
             profile = updatedProfile
+            logger.info("✅ Profile saved successfully!")
         } catch {
+            logger.error("❌ saveProgress failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -201,15 +252,20 @@ final class OnboardingViewModel: ObservableObject {
     // MARK: - Complete Onboarding
     
     private func completeOnboarding() async {
+        logger.info("📍 completeOnboarding() called")
         isLoading = true
         
         // Save final data
+        logger.info("🔄 Saving final data...")
         await saveProgress()
         
         do {
+            logger.info("🔄 Marking onboarding as complete...")
             try await profileService.completeOnboarding()
+            logger.info("✅ Onboarding completed!")
             isComplete = true
         } catch {
+            logger.error("❌ completeOnboarding failed: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
         
