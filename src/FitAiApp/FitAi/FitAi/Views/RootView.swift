@@ -7,34 +7,110 @@
 
 import SwiftUI
 
+// MARK: - App State
+
+enum AppState {
+    case loading
+    case unauthenticated
+    case onboarding
+    case authenticated
+}
+
 // MARK: - Root View
 
-/// The root view of the app that handles navigation based on authentication state.
-/// Shows AuthScreen when not logged in, MainTabView when logged in.
+/// The root view of the app that handles navigation based on authentication and onboarding state.
 struct RootView: View {
     
     // MARK: - Environment
     
     @EnvironmentObject private var authViewModel: AuthViewModel
     
+    // MARK: - State
+    
+    @State private var appState: AppState = .loading
+    @State private var onboardingComplete: Bool = false
+    @State private var profileService: SupabaseUserProfileService?
+    
     // MARK: - Body
     
     var body: some View {
         Group {
-            if authViewModel.isLoading && authViewModel.user == nil {
-                // Initial loading state
+            switch appState {
+            case .loading:
                 loadingView
-            } else if authViewModel.user != nil {
-                // Authenticated - show main tab view
-                MainTabView()
-            } else {
-                // Not authenticated - show auth screen
+                
+            case .unauthenticated:
                 AuthScreen()
+                
+            case .onboarding:
+                if let service = profileService {
+                    OnboardingContainerView(
+                        profileService: service,
+                        isOnboardingComplete: $onboardingComplete
+                    )
+                } else {
+                    loadingView
+                }
+                
+            case .authenticated:
+                MainTabView()
             }
         }
         .task {
-            // Load current user session on app launch
-            await authViewModel.loadCurrentUser()
+            await checkAuthState()
+        }
+        .onChange(of: authViewModel.user) { _, user in
+            Task {
+                if user != nil {
+                    await checkOnboardingState()
+                } else {
+                    appState = .unauthenticated
+                }
+            }
+        }
+        .onChange(of: onboardingComplete) { _, complete in
+            if complete {
+                appState = .authenticated
+            }
+        }
+    }
+    
+    // MARK: - Check Auth State
+    
+    private func checkAuthState() async {
+        await authViewModel.loadCurrentUser()
+        
+        if authViewModel.user != nil {
+            await checkOnboardingState()
+        } else {
+            appState = .unauthenticated
+        }
+    }
+    
+    // MARK: - Check Onboarding State
+    
+    private func checkOnboardingState() async {
+        // Initialize profile service
+        let clientProvider = SupabaseClientProvider()
+        let service = SupabaseUserProfileService(clientProvider: clientProvider)
+        profileService = service
+        
+        do {
+            if let profile = try await service.fetchProfile() {
+                if profile.onboardingCompleted {
+                    appState = .authenticated
+                } else {
+                    appState = .onboarding
+                }
+            } else {
+                // No profile exists yet - create one and start onboarding
+                _ = try await service.createProfile()
+                appState = .onboarding
+            }
+        } catch {
+            // If we can't check profile, assume onboarding needed
+            print("Error checking onboarding state: \(error)")
+            appState = .onboarding
         }
     }
     
