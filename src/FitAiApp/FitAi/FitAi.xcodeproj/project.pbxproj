@@ -6,6 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A480F2A82F2CF134005B95C5 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = A480F2A72F2CF134005B95C5 /* Auth */; };
+		A480F2AA2F2CF134005B95C5 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = A480F2A92F2CF134005B95C5 /* Functions */; };
+		A480F2AC2F2CF134005B95C5 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = A480F2AB2F2CF134005B95C5 /* PostgREST */; };
+		A480F2AE2F2CF134005B95C5 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = A480F2AD2F2CF134005B95C5 /* Realtime */; };
+		A480F2B02F2CF134005B95C5 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = A480F2AF2F2CF134005B95C5 /* Storage */; };
+		A480F2B22F2CF200005B95C5 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A480F2B12F2CF200005B95C5 /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		A480F2982F2CF09F005B95C5 /* FitAi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FitAi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +32,12 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A480F2AC2F2CF134005B95C5 /* PostgREST in Frameworks */,
+				A480F2AA2F2CF134005B95C5 /* Functions in Frameworks */,
+				A480F2A82F2CF134005B95C5 /* Auth in Frameworks */,
+				A480F2B02F2CF134005B95C5 /* Storage in Frameworks */,
+				A480F2AE2F2CF134005B95C5 /* Realtime in Frameworks */,
+				A480F2B22F2CF200005B95C5 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +80,12 @@
 			);
 			name = FitAi;
 			packageProductDependencies = (
+				A480F2A72F2CF134005B95C5 /* Auth */,
+				A480F2A92F2CF134005B95C5 /* Functions */,
+				A480F2AB2F2CF134005B95C5 /* PostgREST */,
+				A480F2AD2F2CF134005B95C5 /* Realtime */,
+				A480F2AF2F2CF134005B95C5 /* Storage */,
+				A480F2B12F2CF200005B95C5 /* Supabase */,
 			);
 			productName = FitAi;
 			productReference = A480F2982F2CF09F005B95C5 /* FitAi.app */;
@@ -94,6 +115,9 @@
 			);
 			mainGroup = A480F28F2F2CF09F005B95C5;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A480F2992F2CF09F005B95C5 /* Products */;
 			projectDirPath = "";
@@ -328,6 +352,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A480F2A72F2CF134005B95C5 /* Auth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Auth;
+		};
+		A480F2A92F2CF134005B95C5 /* Functions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Functions;
+		};
+		A480F2AB2F2CF134005B95C5 /* PostgREST */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = PostgREST;
+		};
+		A480F2AD2F2CF134005B95C5 /* Realtime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Realtime;
+		};
+		A480F2AF2F2CF134005B95C5 /* Storage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Storage;
+		};
+		A480F2B12F2CF200005B95C5 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A480F2A62F2CF134005B95C5 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A480F2902F2CF09F005B95C5 /* Project object */;
 }
