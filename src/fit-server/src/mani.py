@@ -145,6 +145,26 @@ class PlanResponse(BaseModel):
     created_at: str
 
 
+class CorrectionRequest(BaseModel):
+    """Request model for plan corrections."""
+    user_id: str = Field(..., description="User ID to fetch and correct plans for")
+    instruction: str = Field(..., description="Text instruction describing the corrections to make")
+    plan_type: Literal["workout", "meal", "both"] = Field(
+        default="both", 
+        description="Which plan to correct: workout, meal, or both"
+    )
+
+
+class CorrectionResponse(BaseModel):
+    """Response model for corrected plans."""
+    id: str
+    user_id: str
+    workout_plan: Optional[dict] = None
+    meal_plan: Optional[dict] = None
+    correction_applied: str
+    updated_at: str
+
+
 # ==================== Subagent Tools ====================
 
 def format_workout_json(workout_data: str) -> dict:
@@ -195,6 +215,98 @@ def get_calorie_target(tdee: float, goal: str) -> int:
     return int(tdee + adjustments.get(goal, 0))
 
 
+def fetch_current_workout_plan(user_id: str) -> dict:
+    """Fetch the user's current workout plan from the database.
+    
+    Args:
+        user_id: The unique identifier of the user
+        
+    Returns:
+        The user's current workout plan as a dictionary, or error message if not found
+    """
+    try:
+        if supabase is None:
+            return {"error": "Database not connected"}
+        
+        result = supabase.table("fitness_plans")\
+            .select("id, workout_plan, created_at")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if result.data:
+            plan = result.data[0]
+            return {
+                "plan_id": plan["id"],
+                "workout_plan": json.loads(plan["workout_plan"]) if isinstance(plan["workout_plan"], str) else plan["workout_plan"],
+                "created_at": plan["created_at"]
+            }
+        return {"error": f"No workout plan found for user {user_id}"}
+    except Exception as e:
+        return {"error": f"Failed to fetch workout plan: {str(e)}"}
+
+
+def fetch_current_meal_plan(user_id: str) -> dict:
+    """Fetch the user's current meal plan from the database.
+    
+    Args:
+        user_id: The unique identifier of the user
+        
+    Returns:
+        The user's current meal plan as a dictionary, or error message if not found
+    """
+    try:
+        if supabase is None:
+            return {"error": "Database not connected"}
+        
+        result = supabase.table("fitness_plans")\
+            .select("id, meal_plan, created_at")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if result.data:
+            plan = result.data[0]
+            return {
+                "plan_id": plan["id"],
+                "meal_plan": json.loads(plan["meal_plan"]) if isinstance(plan["meal_plan"], str) else plan["meal_plan"],
+                "created_at": plan["created_at"]
+            }
+        return {"error": f"No meal plan found for user {user_id}"}
+    except Exception as e:
+        return {"error": f"Failed to fetch meal plan: {str(e)}"}
+
+
+def fetch_user_profile(user_id: str) -> dict:
+    """Fetch the user's profile from their most recent plan.
+    
+    Args:
+        user_id: The unique identifier of the user
+        
+    Returns:
+        The user's profile as a dictionary, or error message if not found
+    """
+    try:
+        if supabase is None:
+            return {"error": "Database not connected"}
+        
+        result = supabase.table("fitness_plans")\
+            .select("user_profile")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if result.data:
+            profile = result.data[0]["user_profile"]
+            return json.loads(profile) if isinstance(profile, str) else profile
+        return {"error": f"No profile found for user {user_id}"}
+    except Exception as e:
+        return {"error": f"Failed to fetch user profile: {str(e)}"}
+
+
 # ==================== Subagent Definitions ====================
 
 workout_subagent = {
@@ -237,7 +349,7 @@ You MUST return a valid JSON object with this exact structure:
 }
 
 Return ONLY the JSON object, no additional text or markdown formatting.""",
-    "tools": [calculate_bmr, calculate_tdee],
+    "tools": [calculate_bmr, calculate_tdee, fetch_current_workout_plan, fetch_user_profile],
     "model": "openai:gpt-4o-mini",
 }
 
@@ -298,7 +410,7 @@ You MUST return a valid JSON object with this exact structure:
 }
 
 Return ONLY the JSON object, no additional text or markdown formatting.""",
-    "tools": [calculate_bmr, calculate_tdee, get_calorie_target],
+    "tools": [calculate_bmr, calculate_tdee, get_calorie_target, fetch_current_meal_plan, fetch_user_profile],
     "model": "openai:gpt-4o-mini",
 }
 
@@ -433,6 +545,31 @@ async def save_to_supabase(
     except Exception as e:
         print(f"Error saving to Supabase: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save plan: {str(e)}")
+
+
+async def update_plan_in_supabase(
+    plan_id: str,
+    workout_plan: dict = None,
+    meal_plan: dict = None
+) -> dict:
+    """Update an existing plan in Supabase."""
+    try:
+        update_data = {"updated_at": datetime.utcnow().isoformat()}
+        
+        if workout_plan is not None:
+            update_data["workout_plan"] = json.dumps(workout_plan)
+        if meal_plan is not None:
+            update_data["meal_plan"] = json.dumps(meal_plan)
+        
+        result = supabase.table("fitness_plans")\
+            .update(update_data)\
+            .eq("id", plan_id)\
+            .execute()
+        
+        return result.data[0] if result.data else update_data
+    except Exception as e:
+        print(f"Error updating Supabase: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update plan: {str(e)}")
 
 
 # ==================== API Endpoints ====================
@@ -578,6 +715,134 @@ Return ONLY a valid JSON object.
     except Exception as e:
         print(f"Error generating plan: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate plan: {str(e)}")
+
+
+@app.post("/correct-plan", response_model=CorrectionResponse)
+async def correct_plan(request: CorrectionRequest):
+    """
+    Make corrections to existing workout or meal plans based on text instructions.
+    
+    This endpoint allows users to modify their existing plans by providing
+    natural language instructions like:
+    - "Replace squats with leg press due to knee pain"
+    - "Make all meals vegetarian"
+    - "Add more cardio on Day 3"
+    - "Reduce calories by 200 per day"
+    """
+    try:
+        # Fetch user's current plan
+        current_plan = supabase.table("fitness_plans")\
+            .select("*")\
+            .eq("user_id", request.user_id)\
+            .order("created_at", desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if not current_plan.data:
+            raise HTTPException(
+                status_code=404, 
+                detail=f"No existing plan found for user {request.user_id}"
+            )
+        
+        plan = current_plan.data[0]
+        plan_id = plan["id"]
+        current_workout = json.loads(plan["workout_plan"]) if isinstance(plan["workout_plan"], str) else plan["workout_plan"]
+        current_meal = json.loads(plan["meal_plan"]) if isinstance(plan["meal_plan"], str) else plan["meal_plan"]
+        user_profile = json.loads(plan["user_profile"]) if isinstance(plan["user_profile"], str) else plan["user_profile"]
+        
+        # Create agent for corrections
+        thread_id = f"correct_{request.user_id}_{uuid.uuid4().hex[:8]}"
+        agent = create_fitness_agent(thread_id)
+        skills_files = load_skills()
+        
+        corrected_workout = current_workout
+        corrected_meal = current_meal
+        
+        # Correct workout plan if requested
+        if request.plan_type in ["workout", "both"]:
+            workout_correction_prompt = f"""
+The user wants to make corrections to their workout plan.
+
+USER ID: {request.user_id}
+USER PROFILE: {json.dumps(user_profile, indent=2)}
+
+CURRENT WORKOUT PLAN:
+{json.dumps(current_workout, indent=2)}
+
+CORRECTION INSTRUCTION:
+{request.instruction}
+
+Please use the workout-planner subagent to apply the requested corrections.
+The subagent should fetch the current plan using fetch_current_workout_plan tool,
+then modify it according to the instruction while keeping the same JSON structure.
+Return ONLY the corrected JSON workout plan.
+"""
+            
+            workout_response = invoke_agent_with_retry(
+                agent,
+                {
+                    "messages": [{"role": "user", "content": workout_correction_prompt}],
+                    "files": skills_files
+                },
+                thread_id=thread_id
+            )
+            workout_text = workout_response["messages"][-1].content if workout_response.get("messages") else ""
+            corrected_workout = extract_json_from_response(workout_text)
+            
+            time.sleep(2)
+        
+        # Correct meal plan if requested
+        if request.plan_type in ["meal", "both"]:
+            meal_correction_prompt = f"""
+The user wants to make corrections to their meal plan.
+
+USER ID: {request.user_id}
+USER PROFILE: {json.dumps(user_profile, indent=2)}
+
+CURRENT MEAL PLAN:
+{json.dumps(current_meal, indent=2)}
+
+CORRECTION INSTRUCTION:
+{request.instruction}
+
+Please use the meal-planner subagent to apply the requested corrections.
+The subagent should fetch the current plan using fetch_current_meal_plan tool,
+then modify it according to the instruction while keeping the same JSON structure.
+Return ONLY the corrected JSON meal plan.
+"""
+            
+            meal_response = invoke_agent_with_retry(
+                agent,
+                {
+                    "messages": [{"role": "user", "content": meal_correction_prompt}],
+                    "files": skills_files
+                },
+                thread_id=thread_id
+            )
+            meal_text = meal_response["messages"][-1].content if meal_response.get("messages") else ""
+            corrected_meal = extract_json_from_response(meal_text)
+        
+        # Update the plan in Supabase
+        await update_plan_in_supabase(
+            plan_id=plan_id,
+            workout_plan=corrected_workout if request.plan_type in ["workout", "both"] else None,
+            meal_plan=corrected_meal if request.plan_type in ["meal", "both"] else None
+        )
+        
+        return CorrectionResponse(
+            id=plan_id,
+            user_id=request.user_id,
+            workout_plan=corrected_workout if request.plan_type in ["workout", "both"] else None,
+            meal_plan=corrected_meal if request.plan_type in ["meal", "both"] else None,
+            correction_applied=request.instruction,
+            updated_at=datetime.utcnow().isoformat()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error correcting plan: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to correct plan: {str(e)}")
 
 
 @app.get("/plan/{plan_id}")
