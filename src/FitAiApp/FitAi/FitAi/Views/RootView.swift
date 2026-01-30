@@ -64,6 +64,9 @@ struct RootView: View {
                 if user != nil {
                     await checkOnboardingState()
                 } else {
+                    // User signed out - reset ALL state
+                    print("🔐 [ROOT] User signed out - resetting state")
+                    onboardingComplete = false
                     appState = .unauthenticated
                 }
             }
