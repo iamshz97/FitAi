@@ -40,6 +40,12 @@ struct OnboardingContainerView: View {
                 
                 PreferencesPageView(viewModel: viewModel)
                     .tag(OnboardingStep.preferences)
+                
+                HealthBackgroundPageView(viewModel: viewModel)
+                    .tag(OnboardingStep.healthBackground)
+                
+                GoalsLifestylePageView(viewModel: viewModel)
+                    .tag(OnboardingStep.goalsLifestyle)
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.easeInOut(duration: 0.3), value: viewModel.currentStep)

@@ -33,6 +33,16 @@ struct UserProfile: Codable, Equatable {
     var minutesPerSession: Int?
     var equipmentContext: EquipmentContext?
     
+    // Page 3: Health Background
+    var medicalHistory: String?
+    var familyMedicalHistory: String?
+    var currentInjuries: String?
+    
+    // Page 4: Goals & Lifestyle
+    var fitnessGoalsText: String?
+    var trainingConstraints: String?
+    var sleepPattern: SleepPattern?
+    
     var createdAt: Date?
     var updatedAt: Date?
     
@@ -56,6 +66,12 @@ struct UserProfile: Codable, Equatable {
         case daysPerWeek = "days_per_week"
         case minutesPerSession = "minutes_per_session"
         case equipmentContext = "equipment_context"
+        case medicalHistory = "medical_history"
+        case familyMedicalHistory = "family_medical_history"
+        case currentInjuries = "current_injuries"
+        case fitnessGoalsText = "fitness_goals_text"
+        case trainingConstraints = "training_constraints"
+        case sleepPattern = "sleep_pattern"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -193,6 +209,36 @@ enum EquipmentContext: String, Codable, CaseIterable {
         case .gym: return "dumbbell.fill"
         case .homeWithGear: return "house.fill"
         case .bodyweightOnly: return "figure.stand"
+        }
+    }
+}
+
+// MARK: - Sleep Pattern
+
+enum SleepPattern: String, Codable, CaseIterable {
+    case lessThan5 = "less_than_5"
+    case fiveToSix = "5_to_6"
+    case sixToSeven = "6_to_7"
+    case sevenToEight = "7_to_8"
+    case moreThan8 = "more_than_8"
+    
+    var displayName: String {
+        switch self {
+        case .lessThan5: return "< 5 hours"
+        case .fiveToSix: return "5-6 hours"
+        case .sixToSeven: return "6-7 hours"
+        case .sevenToEight: return "7-8 hours"
+        case .moreThan8: return "8+ hours"
+        }
+    }
+    
+    var icon: String {
+        switch self {
+        case .lessThan5: return "moon.zzz"
+        case .fiveToSix: return "moon"
+        case .sixToSeven: return "moon.fill"
+        case .sevenToEight: return "bed.double.fill"
+        case .moreThan8: return "sparkles"
         }
     }
 }

@@ -230,6 +230,34 @@ final class SupabaseUserProfileService: UserProfileService {
             logger.debug("  equipment_context: \(equipment.rawValue)")
         }
         
+        // Page 3: Health Background
+        if let medical = profile.medicalHistory {
+            updateData["medical_history"] = AnyEncodable(medical)
+            logger.debug("  medical_history: (set)")
+        }
+        if let family = profile.familyMedicalHistory {
+            updateData["family_medical_history"] = AnyEncodable(family)
+            logger.debug("  family_medical_history: (set)")
+        }
+        if let injuries = profile.currentInjuries {
+            updateData["current_injuries"] = AnyEncodable(injuries)
+            logger.debug("  current_injuries: (set)")
+        }
+        
+        // Page 4: Goals & Lifestyle
+        if let goalsText = profile.fitnessGoalsText {
+            updateData["fitness_goals_text"] = AnyEncodable(goalsText)
+            logger.debug("  fitness_goals_text: (set)")
+        }
+        if let constraints = profile.trainingConstraints {
+            updateData["training_constraints"] = AnyEncodable(constraints)
+            logger.debug("  training_constraints: (set)")
+        }
+        if let sleep = profile.sleepPattern {
+            updateData["sleep_pattern"] = AnyEncodable(sleep.rawValue)
+            logger.debug("  sleep_pattern: \(sleep.rawValue)")
+        }
+        
         logger.info("🔄 Updating profile with \(updateData.count) fields for user: \(userId.uuidString)")
         
         do {

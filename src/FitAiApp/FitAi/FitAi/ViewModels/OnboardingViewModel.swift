@@ -18,11 +18,24 @@ private let logger = Logger(subsystem: "com.fitai.app", category: "OnboardingVie
 enum OnboardingStep: Int, CaseIterable {
     case personalInfo = 0
     case preferences = 1
+    case healthBackground = 2
+    case goalsLifestyle = 3
     
     var title: String {
         switch self {
         case .personalInfo: return "About You"
-        case .preferences: return "Your Goals"
+        case .preferences: return "Preferences"
+        case .healthBackground: return "Health"
+        case .goalsLifestyle: return "Goals"
+        }
+    }
+    
+    var subtitle: String {
+        switch self {
+        case .personalInfo: return "Tell us about yourself"
+        case .preferences: return "Your fitness journey"
+        case .healthBackground: return "Health background"
+        case .goalsLifestyle: return "Your goals & lifestyle"
         }
     }
     
@@ -55,6 +68,16 @@ final class OnboardingViewModel: ObservableObject {
     @Published var minutesPerSession: Int = 45
     @Published var equipmentContext: EquipmentContext?
     
+    // Page 3: Health Background
+    @Published var medicalHistory: String = ""
+    @Published var familyMedicalHistory: String = ""
+    @Published var currentInjuries: String = ""
+    
+    // Page 4: Goals & Lifestyle
+    @Published var fitnessGoalsText: String = ""
+    @Published var trainingConstraints: String = ""
+    @Published var sleepPattern: SleepPattern?
+    
     // MARK: - Dependencies
     
     private let profileService: UserProfileService
@@ -72,6 +95,21 @@ final class OnboardingViewModel: ObservableObject {
     
     var canProceedPage2: Bool {
         goal != nil && activityLevel != nil && equipmentContext != nil
+    }
+    
+    // Page 3 is optional - always allow proceeding
+    var canProceedPage3: Bool {
+        true
+    }
+    
+    // Page 4 requires fitness goals (500 char limit)
+    var canProceedPage4: Bool {
+        !fitnessGoalsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        fitnessGoalsText.count <= 500
+    }
+    
+    var fitnessGoalsRemaining: Int {
+        500 - fitnessGoalsText.count
     }
     
     var calculatedBMI: Double {
@@ -257,11 +295,23 @@ final class OnboardingViewModel: ObservableObject {
         updatedProfile.daysPerWeek = daysPerWeek
         updatedProfile.minutesPerSession = minutesPerSession
         updatedProfile.equipmentContext = equipmentContext
+        
+        // Page 3: Health Background
+        updatedProfile.medicalHistory = medicalHistory.isEmpty ? nil : medicalHistory
+        updatedProfile.familyMedicalHistory = familyMedicalHistory.isEmpty ? nil : familyMedicalHistory
+        updatedProfile.currentInjuries = currentInjuries.isEmpty ? nil : currentInjuries
+        
+        // Page 4: Goals & Lifestyle
+        updatedProfile.fitnessGoalsText = fitnessGoalsText.isEmpty ? nil : fitnessGoalsText
+        updatedProfile.trainingConstraints = trainingConstraints.isEmpty ? nil : trainingConstraints
+        updatedProfile.sleepPattern = sleepPattern
+        
         updatedProfile.onboardingStep = currentStep.rawValue
         
         logger.info("🔄 Calling profileService.updateProfile()...")
         logger.info("  Data: birthYear=\(self.birthYear), sex=\(self.sexAtBirth?.rawValue ?? "nil"), height=\(self.heightCm), weight=\(self.weightKg)")
         logger.info("  Data: goal=\(self.goal?.rawValue ?? "nil"), activity=\(self.activityLevel?.rawValue ?? "nil"), equipment=\(self.equipmentContext?.rawValue ?? "nil")")
+        logger.info("  Data: fitnessGoals=\(self.fitnessGoalsText.prefix(50))..., sleep=\(self.sleepPattern?.rawValue ?? "nil")")
         
         do {
             try await profileService.updateProfile(updatedProfile)
@@ -275,7 +325,7 @@ final class OnboardingViewModel: ObservableObject {
     
     // MARK: - Complete Onboarding
     
-    private func completeOnboarding() async {
+    func completeOnboarding() async {
         logger.info("📍 completeOnboarding() called")
         isLoading = true
         
