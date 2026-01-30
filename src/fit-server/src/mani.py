@@ -140,6 +140,7 @@ class PlanResponse(BaseModel):
     id: str
     user_id: str
     user_profile: UserProfile
+    reasoning_analysis: Optional[dict] = Field(None, description="Risk assessment and instructions from reasoning subagent")
     workout_plan: dict
     meal_plan: dict
     created_at: str
@@ -163,6 +164,139 @@ class CorrectionResponse(BaseModel):
     meal_plan: Optional[dict] = None
     correction_applied: str
     updated_at: str
+
+
+class ReasoningOutput(BaseModel):
+    """Output from the reasoning subagent."""
+    risk_level: Literal["low", "moderate", "high"] = Field(..., description="Overall risk level")
+    risk_factors_identified: list[str] = Field(default_factory=list, description="List of identified risk factors")
+    safety_instructions: list[str] = Field(default_factory=list, description="Mandatory safety considerations")
+    workout_instructions: list[str] = Field(default_factory=list, description="Specific workout modifications")
+    meal_instructions: list[str] = Field(default_factory=list, description="Specific nutrition modifications")
+    behavioral_considerations: list[str] = Field(default_factory=list, description="Adherence/motivation factors")
+    contraindications: list[str] = Field(default_factory=list, description="Exercises or foods to avoid")
+    medical_notes: list[str] = Field(default_factory=list, description="Medical coordination needed")
+
+
+# ==================== Comprehensive Health Profile Models ====================
+
+class BodyComposition(BaseModel):
+    """Body composition measurements."""
+    height_cm: float = Field(..., gt=0, description="Height in cm")
+    weight_kg: float = Field(..., gt=0, description="Weight in kg")
+    bmi: Optional[float] = Field(None, description="BMI (calculated if not provided)")
+    body_fat_percent: Optional[float] = Field(None, ge=0, le=100, description="Body fat percentage")
+    measurement_method: Optional[str] = Field(None, description="Method used (BIA, DEXA, calipers, etc.)")
+    waist_circumference_cm: Optional[float] = Field(None, description="Waist circumference in cm")
+    hip_circumference_cm: Optional[float] = Field(None, description="Hip circumference in cm")
+
+
+class MedicalHistory(BaseModel):
+    """Medical history and PAR-Q+ information."""
+    # PAR-Q+ Questions
+    heart_condition: bool = Field(default=False, description="Has heart condition or takes heart medication")
+    chest_pain_activity: bool = Field(default=False, description="Chest pain during physical activity")
+    chest_pain_rest: bool = Field(default=False, description="Chest pain at rest in past month")
+    balance_consciousness: bool = Field(default=False, description="Loses balance or consciousness")
+    bone_joint_condition: bool = Field(default=False, description="Bone/joint problem worsened by exercise")
+    blood_pressure_medication: bool = Field(default=False, description="Currently on blood pressure medication")
+    other_reason_no_exercise: bool = Field(default=False, description="Any other reason to avoid exercise")
+    
+    # Diagnoses
+    diagnoses: Optional[list[str]] = Field(default=None, description="List of diagnosed conditions (diabetes, PCOS, hypertension, etc.)")
+    
+    # Medications
+    medications: Optional[list[str]] = Field(default=None, description="Current medications")
+    
+    # Injuries and limitations
+    injuries: Optional[list[str]] = Field(default=None, description="Current or past injuries")
+    surgeries: Optional[list[str]] = Field(default=None, description="Past surgeries")
+    
+    # Additional
+    physician_clearance: bool = Field(default=False, description="Has physician clearance for exercise")
+    notes: Optional[str] = Field(None, description="Additional medical notes")
+
+
+class PsychologicalFactors(BaseModel):
+    """Psychological and behavioral factors."""
+    motivation_level: Optional[Literal["low", "moderate", "high"]] = Field(None, description="Current motivation level")
+    stress_level: Optional[Literal["low", "moderate", "high"]] = Field(None, description="Current stress level")
+    sleep_quality: Optional[Literal["poor", "fair", "good", "excellent"]] = Field(None, description="Sleep quality")
+    sleep_hours: Optional[float] = Field(None, ge=0, le=24, description="Average sleep hours per night")
+    exercise_history: Optional[Literal["none", "sporadic", "regular", "athletic"]] = Field(None, description="Exercise history")
+    previous_program_adherence: Optional[Literal["poor", "moderate", "good"]] = Field(None, description="Adherence to previous programs")
+    eating_behaviors: Optional[list[str]] = Field(None, description="Eating patterns (emotional eating, binge eating, etc.)")
+    social_support: Optional[Literal["none", "limited", "moderate", "strong"]] = Field(None, description="Social support level")
+    barriers: Optional[list[str]] = Field(None, description="Perceived barriers to exercise/diet")
+
+
+class Constraints(BaseModel):
+    """Time, equipment, and environmental constraints."""
+    # Time constraints
+    minutes_per_session: Optional[int] = Field(None, ge=10, le=180, description="Available minutes per workout session")
+    days_per_week: int = Field(..., ge=1, le=7, description="Days available for exercise")
+    preferred_workout_time: Optional[Literal["morning", "afternoon", "evening", "flexible"]] = Field(None)
+    
+    # Equipment access
+    equipment_access: Optional[Literal["none", "home_basic", "home_full", "gym"]] = Field(None, description="Equipment availability")
+    available_equipment: Optional[list[str]] = Field(None, description="Specific equipment available")
+    
+    # Environment
+    workout_environment: Optional[Literal["home", "gym", "outdoor", "mixed"]] = Field(None)
+    climate_considerations: Optional[str] = Field(None, description="Climate/weather constraints")
+    
+    # Dietary constraints
+    dietary_restrictions: Optional[list[str]] = Field(None, description="Dietary restrictions (vegetarian, vegan, allergies, etc.)")
+    cooking_skill: Optional[Literal["none", "basic", "intermediate", "advanced"]] = Field(None)
+    meal_prep_time: Optional[int] = Field(None, description="Minutes available for meal prep per day")
+    budget_constraints: Optional[Literal["tight", "moderate", "flexible"]] = Field(None)
+
+
+class ComprehensiveProfile(BaseModel):
+    """Comprehensive health profile for detailed analysis."""
+    user_id: str = Field(..., description="Unique user identifier")
+    
+    # Demographics
+    age: int = Field(..., ge=13, le=100, description="Age in years")
+    sex: Literal["male", "female"] = Field(..., description="Biological sex")
+    
+    # Body Composition
+    body_composition: BodyComposition
+    
+    # Activity Level
+    activity_level: Literal["sedentary", "lightly_active", "moderately_active", "very_active", "extremely_active"] = Field(
+        ..., description="Current activity level"
+    )
+    
+    # Medical History
+    medical_history: MedicalHistory
+    
+    # Psychological & Behavioral
+    psychological_factors: Optional[PsychologicalFactors] = None
+    
+    # Constraints
+    constraints: Constraints
+    
+    # Goals
+    primary_goal: Literal["weight_loss", "muscle_gain", "maintenance", "endurance", "flexibility", "general_fitness", "health_improvement"] = Field(
+        ..., description="Primary fitness goal"
+    )
+    secondary_goals: Optional[list[str]] = Field(None, description="Secondary goals")
+    target_weight_kg: Optional[float] = Field(None, description="Target weight in kg")
+    timeline_weeks: Optional[int] = Field(None, description="Goal timeline in weeks")
+
+
+class AnalysisResponse(BaseModel):
+    """Response from the profile analysis endpoint."""
+    user_id: str
+    analysis_id: str
+    risk_level: str
+    parq_flags: list[str] = Field(default_factory=list, description="PAR-Q+ positive responses requiring attention")
+    requires_medical_clearance: bool
+    reasoning_analysis: dict
+    calculated_metrics: dict
+    recommendations_summary: str
+    analyzed_at: str
 
 
 # ==================== Subagent Tools ====================
@@ -309,17 +443,76 @@ def fetch_user_profile(user_id: str) -> dict:
 
 # ==================== Subagent Definitions ====================
 
+reasoning_subagent = {
+    "name": "task-reasoner",
+    "description": "Analyzes user profiles to generate task-specific instructions based on risk stratification, safety considerations, injury modifications, and decision hierarchy. Must be called FIRST before workout or meal planning.",
+    "system_prompt": """You are a health systems analyst and exercise science expert. Your job is to analyze user profiles and generate specific instructions for workout and meal planning.
+
+You MUST use the task-reasoning-framework skill to guide your analysis.
+
+ANALYSIS PROCESS:
+1. Calculate risk level based on risk factors (age, BMI, conditions, medications)
+2. Identify all applicable triggers from the parameter mapping
+3. Apply the decision hierarchy (Safety > Medical > Adherence > Optimal > Preferences)
+4. Generate specific, actionable instructions
+
+RISK SCORING:
+- Count risk factors: Age (M≥45, F≥55), BMI≥30, sedentary, injuries, chronic conditions, medications
+- 0-1 factors = Low Risk
+- 2-3 factors = Moderate Risk  
+- 4+ factors OR diagnosed disease = High Risk
+
+OUTPUT FORMAT:
+You MUST return a valid JSON object with this exact structure:
+{
+    "risk_level": "low|moderate|high",
+    "risk_factors_identified": ["list each factor found"],
+    "safety_instructions": ["mandatory safety considerations based on risk"],
+    "workout_instructions": [
+        "specific exercise modifications",
+        "exercises to prioritize",
+        "intensity/volume guidelines",
+        "recovery considerations"
+    ],
+    "meal_instructions": [
+        "specific dietary modifications",
+        "macro adjustments for goal/conditions",
+        "foods to emphasize or avoid",
+        "meal timing considerations"
+    ],
+    "behavioral_considerations": ["adherence strategies", "motivation factors"],
+    "contraindications": ["specific exercises to AVOID", "foods to AVOID"],
+    "medical_notes": ["any medical clearance or coordination needed"]
+}
+
+Be specific and actionable. For example:
+- NOT: "Be careful with knees"
+- YES: "Avoid deep squats, replace with box squats to parallel or leg press"
+
+Return ONLY the JSON object, no additional text or markdown formatting.""",
+    "tools": [calculate_bmr, calculate_tdee, fetch_user_profile],
+    "model": "openai:gpt-4o-mini",
+}
+
 workout_subagent = {
     "name": "workout-planner",
-    "description": "Creates personalized workout plans based on user profile, fitness goals, available days, and any injuries or limitations. Generates structured JSON workout plans.",
+    "description": "Creates personalized workout plans based on user profile AND the instructions from the task-reasoner. Generates structured JSON workout plans.",
     "system_prompt": """You are an expert certified personal trainer and fitness coach. Your job is to create personalized, safe, and effective workout plans.
 
-IMPORTANT GUIDELINES:
-1. Always consider any injuries or physical limitations mentioned
-2. Match exercise intensity to the user's fitness level
-3. Include proper warm-up and cool-down routines
-4. Balance muscle groups throughout the week
-5. Provide clear exercise instructions with sets, reps, and rest periods
+IMPORTANT: You will receive REASONING INSTRUCTIONS from the task-reasoner subagent.
+You MUST follow these instructions as they contain:
+- Safety requirements (non-negotiable)
+- Exercise modifications for injuries/conditions
+- Contraindications (exercises to AVOID)
+- Intensity and volume guidelines
+
+GUIDELINES:
+1. ALWAYS follow the reasoning instructions - they override general best practices
+2. If contraindications list exercises to avoid, DO NOT include them
+3. Use the suggested alternatives from the reasoning instructions
+4. Match intensity to user's fitness level AND risk level
+5. Include proper warm-up and cool-down routines
+6. Balance muscle groups throughout the week
 
 OUTPUT FORMAT:
 You MUST return a valid JSON object with this exact structure:
@@ -345,7 +538,8 @@ You MUST return a valid JSON object with this exact structure:
     ],
     "warm_up_routine": ["list of warm-up exercises"],
     "cool_down_routine": ["list of cool-down stretches"],
-    "tips": ["list of helpful tips for the user"]
+    "tips": ["list of helpful tips for the user"],
+    "safety_notes": ["important safety reminders based on user's conditions"]
 }
 
 Return ONLY the JSON object, no additional text or markdown formatting.""",
@@ -355,18 +549,25 @@ Return ONLY the JSON object, no additional text or markdown formatting.""",
 
 meal_subagent = {
     "name": "meal-planner",
-    "description": "Creates personalized meal plans based on user profile, fitness goals, calorie needs, and dietary restrictions. Generates structured JSON meal plans.",
+    "description": "Creates personalized meal plans based on user profile AND the instructions from the task-reasoner. Generates structured JSON meal plans.",
     "system_prompt": """You are an expert nutritionist and meal planning specialist. Your job is to create personalized, balanced, and achievable meal plans.
 
-IMPORTANT GUIDELINES:
-1. Always respect dietary restrictions mentioned
-2. Calculate appropriate macros based on the fitness goal
-3. Create practical, easy-to-prepare meals
-4. Ensure nutritional balance across all meals
-5. Include variety to maintain interest
+IMPORTANT: You will receive REASONING INSTRUCTIONS from the task-reasoner subagent.
+You MUST follow these instructions as they contain:
+- Dietary modifications for conditions (PCOS, diabetes, etc.)
+- Foods to avoid (allergies, restrictions, contraindications)
+- Macro adjustments based on goals and conditions
+- Meal timing considerations
+
+GUIDELINES:
+1. ALWAYS follow the reasoning instructions - they override general guidelines
+2. Respect all dietary restrictions and contraindications
+3. If conditions like PCOS/diabetes present, adjust glycemic index and carb timing
+4. Create practical, easy-to-prepare meals
+5. Ensure nutritional balance across all meals
 6. Provide a comprehensive shopping list
 
-MACRO GUIDELINES BY GOAL:
+MACRO GUIDELINES BY GOAL (adjust based on reasoning instructions):
 - Weight Loss: 40% protein, 30% carbs, 30% fat
 - Muscle Gain: 30% protein, 45% carbs, 25% fat
 - Maintenance: 25% protein, 45% carbs, 30% fat
@@ -376,7 +577,7 @@ OUTPUT FORMAT:
 You MUST return a valid JSON object with this exact structure:
 {
     "plan_name": "string - descriptive name for the plan",
-    "description": "string - brief overview of the plan",
+    "description": "string - brief overview including any condition-specific notes",
     "daily_calories_target": number,
     "macros_split": {
         "protein_percent": number,
@@ -406,7 +607,8 @@ You MUST return a valid JSON object with this exact structure:
         }
     ],
     "shopping_list": ["comprehensive list of items to buy"],
-    "tips": ["list of helpful nutrition and meal prep tips"]
+    "tips": ["list of helpful nutrition and meal prep tips"],
+    "dietary_notes": ["condition-specific dietary reminders"]
 }
 
 Return ONLY the JSON object, no additional text or markdown formatting.""",
@@ -455,29 +657,34 @@ def create_fitness_agent(thread_id: str = None):
         system_prompt="""You are FitAI, an intelligent fitness and nutrition coordinator. Your job is to orchestrate the creation of personalized workout and meal plans.
 
 SKILLS AVAILABLE:
-You have access to specialized skills that provide domain knowledge:
-- exercise-database: Reference for exercise selection, injury modifications, and workout programming
-- nutrition-guidelines: Reference for macro calculations, food choices, and dietary restrictions
+- task-reasoning-framework: Decision logic for risk assessment and task generation
+- exercise-database: Exercise selection and injury modifications
+- nutrition-guidelines: Macro calculations and dietary restrictions
 
-Use these skills when you need detailed information about exercises or nutrition.
+CRITICAL WORKFLOW (MUST FOLLOW THIS ORDER):
+1. FIRST: Use the task-reasoner subagent to analyze the user profile
+   - This generates safety requirements, modifications, and contraindications
+   - The reasoning output MUST be passed to the planners
 
-WORKFLOW:
-1. Analyze the user's profile data (age, gender, height, weight, goal, etc.)
-2. Reference the exercise-database skill for injury-safe exercise selection
-3. Reference the nutrition-guidelines skill for dietary restriction handling
-4. Delegate workout plan creation to the workout-planner subagent
-5. Delegate meal plan creation to the meal-planner subagent
-6. Ensure both plans are aligned with the user's goals
+2. SECOND: Use the workout-planner subagent with the reasoning instructions
+   - Include the full reasoning output in your delegation
+   - The planner will follow safety and modification instructions
 
-IMPORTANT:
-- Always delegate to specialized subagents using the task() tool
-- The workout-planner handles all exercise-related planning
-- The meal-planner handles all nutrition-related planning
-- Ensure plans account for any injuries or dietary restrictions mentioned
-- Use skills for reference information, subagents for plan generation
+3. THIRD: Use the meal-planner subagent with the reasoning instructions
+   - Include the full reasoning output in your delegation
+   - The planner will follow dietary and restriction instructions
 
-When delegating tasks, provide all relevant user profile information to each subagent.""",
-        subagents=[workout_subagent, meal_subagent]
+IMPORTANT RULES:
+- NEVER skip the reasoning step - it determines safety requirements
+- ALWAYS pass the reasoning instructions to both planners
+- The reasoning output contains non-negotiable safety constraints
+- Planners must follow contraindications (exercises/foods to avoid)
+
+When delegating tasks:
+1. task-reasoner: 'Analyze this user profile and generate task instructions: [profile]'
+2. workout-planner: 'Create workout plan following these REASONING INSTRUCTIONS: [reasoning output] for USER: [profile]'
+3. meal-planner: 'Create meal plan following these REASONING INSTRUCTIONS: [reasoning output] for USER: [profile]'""",
+        subagents=[reasoning_subagent, workout_subagent, meal_subagent]
     )
 
 
@@ -525,16 +732,18 @@ def extract_json_from_response(response_text: str) -> dict:
 async def save_to_supabase(
     plan_id: str, 
     user_id: str,
-    user_profile: dict, 
+    user_profile: dict,
+    reasoning_analysis: dict,
     workout_plan: dict, 
     meal_plan: dict
 ) -> dict:
-    """Save the generated plans to Supabase with user_id separate."""
+    """Save the generated plans to Supabase with reasoning analysis."""
     try:
         data = {
             "id": plan_id,
             "user_id": user_id,
             "user_profile": json.dumps(user_profile),
+            "reasoning_analysis": json.dumps(reasoning_analysis) if reasoning_analysis else None,
             "workout_plan": json.dumps(workout_plan),
             "meal_plan": json.dumps(meal_plan),
             "created_at": datetime.utcnow().isoformat()
@@ -584,6 +793,241 @@ async def root():
     }
 
 
+@app.post("/analyze-profile", response_model=AnalysisResponse)
+async def analyze_profile(profile: ComprehensiveProfile):
+    """
+    Analyze a comprehensive health profile and return reasoning instructions.
+    
+    This endpoint takes detailed health data including:
+    - Demographics (age, sex)
+    - Body composition (height, weight, BMI, body fat %)
+    - Activity level
+    - Medical history (PAR-Q+, diagnoses, medications)
+    - Psychological & behavioral factors
+    - Constraints (time, equipment, environment)
+    
+    Returns risk assessment and specific instructions for workout/meal planning
+    WITHOUT generating the actual plans.
+    """
+    try:
+        # Create the fitness agent
+        thread_id = f"analyze_{profile.user_id}_{uuid.uuid4().hex[:8]}"
+        agent = create_fitness_agent(thread_id)
+        skills_files = load_skills()
+        
+        # Calculate BMI if not provided
+        bc = profile.body_composition
+        height_m = bc.height_cm / 100
+        calculated_bmi = bc.bmi if bc.bmi else round(bc.weight_kg / (height_m ** 2), 1)
+        
+        # Calculate waist-to-hip ratio if available
+        whr = None
+        if bc.waist_circumference_cm and bc.hip_circumference_cm:
+            whr = round(bc.waist_circumference_cm / bc.hip_circumference_cm, 2)
+        
+        # Calculate metabolic data
+        bmr = calculate_bmr(profile.age, profile.sex, bc.height_cm, bc.weight_kg)
+        
+        # Map activity level to multiplier
+        activity_multipliers = {
+            "sedentary": 1.2,
+            "lightly_active": 1.375,
+            "moderately_active": 1.55,
+            "very_active": 1.725,
+            "extremely_active": 1.9
+        }
+        tdee = int(bmr * activity_multipliers.get(profile.activity_level, 1.55))
+        calorie_target = get_calorie_target(tdee, profile.primary_goal)
+        
+        # Check PAR-Q+ flags
+        mh = profile.medical_history
+        parq_flags = []
+        if mh.heart_condition:
+            parq_flags.append("Heart condition or heart medication")
+        if mh.chest_pain_activity:
+            parq_flags.append("Chest pain during physical activity")
+        if mh.chest_pain_rest:
+            parq_flags.append("Chest pain at rest in past month")
+        if mh.balance_consciousness:
+            parq_flags.append("Balance/consciousness issues")
+        if mh.bone_joint_condition:
+            parq_flags.append("Bone/joint condition worsened by exercise")
+        if mh.blood_pressure_medication:
+            parq_flags.append("Currently on blood pressure medication")
+        if mh.other_reason_no_exercise:
+            parq_flags.append("Other reason to avoid exercise")
+        
+        requires_medical_clearance = len(parq_flags) > 0 or not mh.physician_clearance
+        
+        # Build comprehensive profile string for reasoning
+        profile_data = f"""
+=== COMPREHENSIVE HEALTH PROFILE ===
+
+DEMOGRAPHICS:
+- User ID: {profile.user_id}
+- Age: {profile.age} years
+- Sex: {profile.sex}
+
+BODY COMPOSITION:
+- Height: {bc.height_cm} cm
+- Weight: {bc.weight_kg} kg
+- BMI: {calculated_bmi} {"(overweight)" if 25 <= calculated_bmi < 30 else "(obese)" if calculated_bmi >= 30 else "(normal)" if 18.5 <= calculated_bmi < 25 else "(underweight)"}
+- Body Fat %: {bc.body_fat_percent}% (estimated via {bc.measurement_method or 'unknown method'})
+{f"- Waist Circumference: {bc.waist_circumference_cm} cm" if bc.waist_circumference_cm else ""}
+{f"- Hip Circumference: {bc.hip_circumference_cm} cm" if bc.hip_circumference_cm else ""}
+{f"- Waist-to-Hip Ratio: {whr}" if whr else ""}
+
+ACTIVITY LEVEL: {profile.activity_level.replace('_', ' ')}
+
+MEDICAL HISTORY:
+PAR-Q+ Positive Responses: {parq_flags if parq_flags else 'None'}
+Diagnoses: {mh.diagnoses if mh.diagnoses else 'None reported'}
+Medications: {mh.medications if mh.medications else 'None reported'}
+Injuries: {mh.injuries if mh.injuries else 'None reported'}
+Past Surgeries: {mh.surgeries if mh.surgeries else 'None reported'}
+Physician Clearance: {'Yes' if mh.physician_clearance else 'No / Not obtained'}
+Additional Notes: {mh.notes if mh.notes else 'None'}
+"""
+        
+        # Add psychological factors if provided
+        if profile.psychological_factors:
+            pf = profile.psychological_factors
+            profile_data += f"""
+PSYCHOLOGICAL & BEHAVIORAL FACTORS:
+- Motivation Level: {pf.motivation_level or 'Not assessed'}
+- Stress Level: {pf.stress_level or 'Not assessed'}
+- Sleep Quality: {pf.sleep_quality or 'Not assessed'}
+- Sleep Hours: {pf.sleep_hours or 'Not reported'} hours/night
+- Exercise History: {pf.exercise_history or 'Not reported'}
+- Previous Program Adherence: {pf.previous_program_adherence or 'Not assessed'}
+- Eating Behaviors: {pf.eating_behaviors if pf.eating_behaviors else 'None reported'}
+- Social Support: {pf.social_support or 'Not assessed'}
+- Perceived Barriers: {pf.barriers if pf.barriers else 'None reported'}
+"""
+        
+        # Add constraints
+        c = profile.constraints
+        profile_data += f"""
+CONSTRAINTS:
+Time:
+- Minutes per session: {c.minutes_per_session or 'Flexible'}
+- Days per week: {c.days_per_week}
+- Preferred workout time: {c.preferred_workout_time or 'Flexible'}
+
+Equipment:
+- Equipment access: {c.equipment_access or 'Not specified'}
+- Available equipment: {c.available_equipment if c.available_equipment else 'Not specified'}
+
+Environment:
+- Workout environment: {c.workout_environment or 'Not specified'}
+- Climate considerations: {c.climate_considerations or 'None'}
+
+Dietary:
+- Dietary restrictions: {c.dietary_restrictions if c.dietary_restrictions else 'None'}
+- Cooking skill: {c.cooking_skill or 'Not specified'}
+- Meal prep time: {c.meal_prep_time or 'Not specified'} minutes/day
+- Budget: {c.budget_constraints or 'Not specified'}
+
+GOALS:
+- Primary Goal: {profile.primary_goal.replace('_', ' ')}
+- Secondary Goals: {profile.secondary_goals if profile.secondary_goals else 'None'}
+- Target Weight: {profile.target_weight_kg or 'Not specified'} kg
+- Timeline: {profile.timeline_weeks or 'Not specified'} weeks
+
+CALCULATED METRICS:
+- BMR (Basal Metabolic Rate): {bmr} calories/day
+- TDEE (Total Daily Energy Expenditure): {tdee} calories/day
+- Recommended Daily Calorie Target: {calorie_target} calories/day
+"""
+        
+        print(f"🧠 Analyzing comprehensive profile for user {profile.user_id}...")
+        print(f"   PAR-Q+ flags: {parq_flags}")
+        print(f"   Medical clearance required: {requires_medical_clearance}")
+        
+        # Run the Reasoning Subagent
+        reasoning_prompt = f"""
+Analyze this COMPREHENSIVE health profile and generate detailed task-specific instructions.
+
+{profile_data}
+
+CRITICAL ANALYSIS REQUIREMENTS:
+1. Review ALL PAR-Q+ responses - any positive response requires special handling
+2. Consider ALL medical diagnoses and medications for contraindications
+3. Account for ALL injuries - past and current
+4. Factor in psychological barriers and adherence history
+5. Work within the stated constraints (time, equipment, environment)
+6. Consider body composition metrics (BMI, body fat %, waist-to-hip ratio)
+
+Apply the task-reasoning-framework skill to:
+1. Calculate comprehensive risk level considering ALL factors
+2. Identify every applicable trigger from the parameters
+3. Apply decision hierarchy (Safety > Medical > Adherence > Optimal > Preferences)
+4. Generate specific, actionable instructions
+5. List ALL contraindications based on medical history and injuries
+6. Note if medical clearance is needed before starting any program
+
+{"⚠️ MEDICAL CLEARANCE REQUIRED: This user has PAR-Q+ positive responses. Include this in medical_notes." if requires_medical_clearance else ""}
+
+Return the reasoning output as a JSON object following the exact format specified.
+Be extremely thorough given the comprehensive nature of this profile.
+"""
+        
+        reasoning_response = invoke_agent_with_retry(
+            agent,
+            {
+                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this comprehensive analysis: {reasoning_prompt}"}],
+                "files": skills_files
+            },
+            thread_id=thread_id
+        )
+        reasoning_text = reasoning_response["messages"][-1].content if reasoning_response.get("messages") else ""
+        reasoning_output = extract_json_from_response(reasoning_text)
+        
+        print(f"✅ Analysis complete. Risk level: {reasoning_output.get('risk_level', 'unknown')}")
+        
+        # Generate analysis ID
+        analysis_id = str(uuid.uuid4())
+        
+        # Build recommendations summary
+        risk_level = reasoning_output.get('risk_level', 'moderate')
+        safety_count = len(reasoning_output.get('safety_instructions', []))
+        contraindication_count = len(reasoning_output.get('contraindications', []))
+        
+        recommendations_summary = f"Risk Level: {risk_level.upper()}. "
+        if requires_medical_clearance:
+            recommendations_summary += "MEDICAL CLEARANCE REQUIRED before starting exercise program. "
+        recommendations_summary += f"Identified {safety_count} safety considerations and {contraindication_count} contraindications. "
+        
+        if risk_level == "high":
+            recommendations_summary += "Recommend supervised exercise and close monitoring."
+        elif risk_level == "moderate":
+            recommendations_summary += "Proceed with caution, following all safety modifications."
+        else:
+            recommendations_summary += "Safe to proceed with standard programming."
+        
+        return AnalysisResponse(
+            user_id=profile.user_id,
+            analysis_id=analysis_id,
+            risk_level=risk_level,
+            parq_flags=parq_flags,
+            requires_medical_clearance=requires_medical_clearance,
+            reasoning_analysis=reasoning_output,
+            calculated_metrics={
+                "bmi": calculated_bmi,
+                "waist_to_hip_ratio": whr,
+                "bmr": bmr,
+                "tdee": tdee,
+                "calorie_target": calorie_target
+            },
+            recommendations_summary=recommendations_summary,
+            analyzed_at=datetime.utcnow().isoformat()
+        )
+        
+    except Exception as e:
+        print(f"Error analyzing profile: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to analyze profile: {str(e)}")
+
+
 @app.post("/generate-plan", response_model=PlanResponse)
 async def generate_plan(profile: UserProfile):
     """
@@ -610,15 +1054,19 @@ async def generate_plan(profile: UserProfile):
         tdee = calculate_tdee(bmr, profile.intensity)
         calorie_target = get_calorie_target(tdee, profile.goal)
         
-        # Prepare the prompt for the agent
-        user_data = f"""
-Please create a comprehensive fitness plan for the following user:
-
+        # Calculate BMI for risk assessment
+        height_m = profile.height / 100
+        bmi = profile.weight / (height_m ** 2)
+        
+        # Prepare profile data string for reasoning
+        profile_data = f"""
 USER PROFILE:
+- User ID: {profile.user_id}
 - Age: {profile.age} years
 - Gender: {profile.gender}
 - Height: {profile.height} cm
 - Weight: {profile.weight} kg
+- BMI: {bmi:.1f}
 - Fitness Goal: {profile.goal.replace('_', ' ')}
 - Days Available for Exercise: {profile.days_per_week} days/week
 - Fitness Level: {profile.intensity}
@@ -629,27 +1077,75 @@ CALCULATED METRICS:
 - BMR (Basal Metabolic Rate): {bmr} calories/day
 - TDEE (Total Daily Energy Expenditure): {tdee} calories/day
 - Recommended Daily Calorie Target: {calorie_target} calories/day
-
-Please:
-1. Use the workout-planner subagent to create a {profile.days_per_week}-day workout plan
-2. Use the meal-planner subagent to create a 7-day meal plan with {calorie_target} calories/day target
-
-Ensure both plans are returned as valid JSON objects.
 """
         
-        # Run the agent
-        workout_plan = {}
-        meal_plan = {}
+        # STEP 1: Run the Reasoning Subagent FIRST
+        print(f"🧠 Step 1: Running task-reasoner for risk assessment and instructions...")
         
-        # Generate workout plan
+        reasoning_prompt = f"""
+Analyze this user profile and generate task-specific instructions for the workout and meal planners.
+
+{profile_data}
+
+Use the task-reasoning-framework skill to:
+1. Calculate risk level based on all factors (age, BMI, injuries, conditions)
+2. Identify all applicable triggers
+3. Generate specific, actionable instructions for both workout and meal planning
+4. List any contraindications (exercises/foods to AVOID)
+
+Return the reasoning output as a JSON object following the exact format specified.
+"""
+        
+        reasoning_response = invoke_agent_with_retry(
+            agent, 
+            {
+                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this analysis: {reasoning_prompt}"}],
+                "files": skills_files
+            },
+            thread_id=thread_id
+        )
+        reasoning_text = reasoning_response["messages"][-1].content if reasoning_response.get("messages") else ""
+        reasoning_output = extract_json_from_response(reasoning_text)
+        
+        print(f"✅ Reasoning complete. Risk level: {reasoning_output.get('risk_level', 'unknown')}")
+        print(f"   Risk factors: {reasoning_output.get('risk_factors_identified', [])}")
+        
+        # Add delay between requests
+        time.sleep(2)
+        
+        # STEP 2: Generate Workout Plan with Reasoning Instructions
+        print(f"💪 Step 2: Running workout-planner with reasoning instructions...")
+        
         workout_prompt = f"""
-Create a personalized workout plan for:
-- Age: {profile.age}, Gender: {profile.gender}
-- Height: {profile.height}cm, Weight: {profile.weight}kg
-- Goal: {profile.goal.replace('_', ' ')}
-- Days/week: {profile.days_per_week}
-- Level: {profile.intensity}
-- Injuries: {profile.injuries or 'None'}
+Create a personalized workout plan for this user, following the REASONING INSTRUCTIONS below.
+
+{profile_data}
+
+=== REASONING INSTRUCTIONS (MUST FOLLOW) ===
+Risk Level: {reasoning_output.get('risk_level', 'moderate')}
+Risk Factors: {reasoning_output.get('risk_factors_identified', [])}
+
+SAFETY INSTRUCTIONS (non-negotiable):
+{json.dumps(reasoning_output.get('safety_instructions', []), indent=2)}
+
+WORKOUT-SPECIFIC INSTRUCTIONS:
+{json.dumps(reasoning_output.get('workout_instructions', []), indent=2)}
+
+CONTRAINDICATIONS (MUST AVOID these exercises):
+{json.dumps(reasoning_output.get('contraindications', []), indent=2)}
+
+BEHAVIORAL CONSIDERATIONS:
+{json.dumps(reasoning_output.get('behavioral_considerations', []), indent=2)}
+
+MEDICAL NOTES:
+{json.dumps(reasoning_output.get('medical_notes', []), indent=2)}
+=== END REASONING INSTRUCTIONS ===
+
+Create a {profile.days_per_week}-day workout plan that:
+1. Follows ALL safety instructions
+2. Avoids ALL contraindicated exercises
+3. Incorporates the workout-specific modifications
+4. Matches the user's fitness level ({profile.intensity})
 
 Return ONLY a valid JSON object.
 """
@@ -665,17 +1161,44 @@ Return ONLY a valid JSON object.
         workout_text = workout_response["messages"][-1].content if workout_response.get("messages") else ""
         workout_plan = extract_json_from_response(workout_text)
         
-        # Add small delay between requests to avoid rate limits
+        print(f"✅ Workout plan generated: {workout_plan.get('plan_name', 'Unnamed')}")
+        
+        # Add delay between requests
         time.sleep(2)
         
-        # Generate meal plan
+        # STEP 3: Generate Meal Plan with Reasoning Instructions
+        print(f"🍎 Step 3: Running meal-planner with reasoning instructions...")
+        
         meal_prompt = f"""
-Create a personalized meal plan for:
-- Age: {profile.age}, Gender: {profile.gender}
-- Height: {profile.height}cm, Weight: {profile.weight}kg
-- Goal: {profile.goal.replace('_', ' ')}
-- Daily Calories: {calorie_target}
-- Dietary Restrictions: {profile.dietary_restrictions or 'None'}
+Create a personalized meal plan for this user, following the REASONING INSTRUCTIONS below.
+
+{profile_data}
+
+=== REASONING INSTRUCTIONS (MUST FOLLOW) ===
+Risk Level: {reasoning_output.get('risk_level', 'moderate')}
+Risk Factors: {reasoning_output.get('risk_factors_identified', [])}
+
+SAFETY INSTRUCTIONS (non-negotiable):
+{json.dumps(reasoning_output.get('safety_instructions', []), indent=2)}
+
+MEAL-SPECIFIC INSTRUCTIONS:
+{json.dumps(reasoning_output.get('meal_instructions', []), indent=2)}
+
+CONTRAINDICATIONS (MUST AVOID these foods):
+{json.dumps(reasoning_output.get('contraindications', []), indent=2)}
+
+BEHAVIORAL CONSIDERATIONS:
+{json.dumps(reasoning_output.get('behavioral_considerations', []), indent=2)}
+
+MEDICAL NOTES:
+{json.dumps(reasoning_output.get('medical_notes', []), indent=2)}
+=== END REASONING INSTRUCTIONS ===
+
+Create a 7-day meal plan with {calorie_target} calories/day target that:
+1. Follows ALL dietary instructions
+2. Avoids ALL contraindicated foods
+3. Incorporates the meal-specific modifications
+4. Respects dietary restrictions: {profile.dietary_restrictions or 'None'}
 
 Return ONLY a valid JSON object.
 """
@@ -691,14 +1214,18 @@ Return ONLY a valid JSON object.
         meal_text = meal_response["messages"][-1].content if meal_response.get("messages") else ""
         meal_plan = extract_json_from_response(meal_text)
         
+        print(f"✅ Meal plan generated: {meal_plan.get('plan_name', 'Unnamed')}")
+        print(f"🎉 All plans generated successfully!")
+        
         # Generate unique ID for this plan
         plan_id = str(uuid.uuid4())
         
-        # Save to Supabase
+        # Save to Supabase (including reasoning analysis)
         await save_to_supabase(
             plan_id=plan_id,
             user_id=profile.user_id,
             user_profile=profile.model_dump(),
+            reasoning_analysis=reasoning_output,
             workout_plan=workout_plan,
             meal_plan=meal_plan
         )
@@ -707,6 +1234,7 @@ Return ONLY a valid JSON object.
             id=plan_id,
             user_id=profile.user_id,
             user_profile=profile,
+            reasoning_analysis=reasoning_output,
             workout_plan=workout_plan,
             meal_plan=meal_plan,
             created_at=datetime.utcnow().isoformat()
