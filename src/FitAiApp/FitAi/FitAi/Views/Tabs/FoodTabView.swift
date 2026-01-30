@@ -9,8 +9,7 @@ import SwiftUI
 
 // MARK: - Food Tab View
 
-/// The food/nutrition tab content view.
-/// Track meals by capturing food photos and getting AI-powered nutritional analysis.
+/// The food/nutrition tab content view with premium dark green design.
 struct FoodTabView: View {
     
     // MARK: - State
@@ -21,10 +20,9 @@ struct FoodTabView: View {
     // MARK: - Initialization
     
     init() {
-        // Create dependencies
         let clientProvider = SupabaseClientProvider()
         let storageService = SupabaseStorageService(clientProvider: clientProvider)
-        let analysisService = MockFoodAnalysisService() // TODO: Replace with real API
+        let analysisService = MockFoodAnalysisService()
         
         _viewModel = StateObject(wrappedValue: FoodCaptureViewModel(
             storageService: storageService,
@@ -35,43 +33,55 @@ struct FoodTabView: View {
     // MARK: - Body
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // Main content based on state
-                contentForState
-                
-                // Floating capture button (only in idle state)
-                if case .idle = viewModel.state {
-                    captureButton
+        ZStack {
+            // Main content based on state
+            contentForState
+            
+            // Floating capture button (only in idle state)
+            if case .idle = viewModel.state {
+                captureButton
+            }
+        }
+        .appBackground()
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Food")
+                    .font(AppTheme.Typography.headlineSmall())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {}) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
             }
-            .navigationTitle("Food")
-            .navigationBarTitleDisplayMode(.large)
-            .confirmationDialog(
-                "Add Food Photo",
-                isPresented: $showImageSourcePicker,
-                titleVisibility: .visible
-            ) {
-                if ImagePicker.isCameraAvailable {
-                    Button("Take Photo") {
-                        viewModel.openCamera()
-                    }
+        }
+        .confirmationDialog(
+            "Add Food Photo",
+            isPresented: $showImageSourcePicker,
+            titleVisibility: .visible
+        ) {
+            if ImagePicker.isCameraAvailable {
+                Button("Take Photo") {
+                    viewModel.openCamera()
                 }
-                Button("Choose from Library") {
-                    viewModel.openPhotoLibrary()
-                }
-                Button("Cancel", role: .cancel) {}
             }
-            .sheet(isPresented: $viewModel.showCamera) {
-                ImagePicker(sourceType: .camera) { image in
-                    viewModel.onImageCaptured(image)
-                }
-                .ignoresSafeArea()
+            Button("Choose from Library") {
+                viewModel.openPhotoLibrary()
             }
-            .sheet(isPresented: $viewModel.showPhotoLibrary) {
-                ImagePicker(sourceType: .photoLibrary) { image in
-                    viewModel.onImageCaptured(image)
-                }
+            Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $viewModel.showCamera) {
+            ImagePicker(sourceType: .camera) { image in
+                viewModel.onImageCaptured(image)
+            }
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $viewModel.showPhotoLibrary) {
+            ImagePicker(sourceType: .photoLibrary) { image in
+                viewModel.onImageCaptured(image)
             }
         }
     }
@@ -83,25 +93,18 @@ struct FoodTabView: View {
         switch viewModel.state {
         case .idle:
             idleView
-            
         case .captured(let image):
             capturedImageView(image)
-            
         case .uploading:
             processingView(title: "Uploading Image...", subtitle: "Saving to cloud storage")
-            
         case .analyzing:
             processingView(title: "Analyzing Food...", subtitle: "AI is detecting your meal")
-            
         case .review:
             FoodReviewView(viewModel: viewModel)
-            
         case .submitting:
             processingView(title: "Logging Meal...", subtitle: "Saving to your food diary")
-            
         case .success:
             successView
-            
         case .error(let message):
             errorView(message: message)
         }
@@ -110,29 +113,89 @@ struct FoodTabView: View {
     // MARK: - Idle View
     
     private var idleView: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Placeholder Content
-                VStack(spacing: 16) {
-                    Image(systemName: "fork.knife.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundStyle(.green.opacity(0.3))
-                    
-                    Text("Track your nutrition")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                    
-                    Text("Tap the camera button to take a photo of your meal and get instant nutritional information.")
-                        .font(.subheadline)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding(.vertical, 60)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: AppTheme.Spacing.xxl) {
+                // Today's Summary Card
+                todaySummaryCard
                 
-                Spacer()
+                // Recent Meals Section
+                recentMealsSection
+                
+                Spacer(minLength: 120)
             }
-            .padding()
+            .padding(.horizontal, AppTheme.Spacing.xl)
+            .padding(.top, AppTheme.Spacing.lg)
+        }
+    }
+    
+    // MARK: - Today's Summary Card
+    
+    private var todaySummaryCard: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+            Text("TODAY'S NUTRITION")
+                .font(AppTheme.Typography.label())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+            
+            HStack(spacing: AppTheme.Spacing.xxl) {
+                NutritionStatView(
+                    value: "1,245",
+                    label: "Calories",
+                    progress: 0.62,
+                    color: AppTheme.Colors.warning
+                )
+                
+                NutritionStatView(
+                    value: "85g",
+                    label: "Protein",
+                    progress: 0.7,
+                    color: AppTheme.Colors.error
+                )
+                
+                NutritionStatView(
+                    value: "130g",
+                    label: "Carbs",
+                    progress: 0.5,
+                    color: AppTheme.Colors.info
+                )
+                
+                NutritionStatView(
+                    value: "45g",
+                    label: "Fat",
+                    progress: 0.55,
+                    color: AppTheme.Colors.accent
+                )
+            }
+        }
+        .padding(AppTheme.Spacing.xl)
+        .cardStyle()
+    }
+    
+    // MARK: - Recent Meals Section
+    
+    private var recentMealsSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+            Text("Recent Meals")
+                .font(AppTheme.Typography.headline())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+            
+            // Empty state
+            VStack(spacing: AppTheme.Spacing.lg) {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 50))
+                    .foregroundStyle(AppTheme.Colors.accent.opacity(0.3))
+                
+                Text("No meals logged today")
+                    .font(AppTheme.Typography.body())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                
+                Text("Tap the camera button to log your first meal")
+                    .font(AppTheme.Typography.caption())
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, AppTheme.Spacing.xxxl)
+            .cardStyle()
         }
     }
     
@@ -145,77 +208,64 @@ struct FoodTabView: View {
             Button(action: {
                 showImageSourcePicker = true
             }) {
-                HStack(spacing: 12) {
+                HStack(spacing: AppTheme.Spacing.md) {
                     Image(systemName: "camera.fill")
-                        .font(.title2)
+                        .font(.system(size: 20, weight: .semibold))
                     Text("Capture Food")
-                        .font(.headline)
+                        .font(AppTheme.Typography.bodyMedium())
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(
-                        colors: [.green, .green.opacity(0.8)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .foregroundStyle(.white)
+                .foregroundStyle(AppTheme.Colors.background)
+                .padding(.horizontal, AppTheme.Spacing.xxl)
+                .padding(.vertical, AppTheme.Spacing.lg)
+                .background(AppTheme.Colors.accent)
                 .clipShape(Capsule())
-                .shadow(color: .green.opacity(0.4), radius: 10, y: 5)
+                .shadow(color: AppTheme.Shadows.buttonGlow, radius: 15, y: 5)
             }
-            .padding(.bottom, 30)
+            .padding(.bottom, 100)
         }
     }
     
     // MARK: - Captured Image View
     
     private func capturedImageView(_ image: UIImage) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: AppTheme.Spacing.xxl) {
+            Spacer()
+            
             // Image preview
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(maxHeight: 400)
-                .cornerRadius(16)
-                .shadow(radius: 10)
-                .padding()
+                .frame(maxHeight: 350)
+                .cornerRadius(AppTheme.CornerRadius.large)
+                .shadow(color: .black.opacity(0.3), radius: 20)
+                .padding(.horizontal, AppTheme.Spacing.xl)
             
             Text("Ready to analyze your meal?")
-                .font(.headline)
+                .font(AppTheme.Typography.headline())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
             
             // Buttons
-            HStack(spacing: 16) {
-                Button(action: {
-                    viewModel.cancel()
-                }) {
-                    Text("Retake")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color(.secondarySystemBackground))
-                        .foregroundStyle(.primary)
-                        .cornerRadius(12)
-                }
-                
+            VStack(spacing: AppTheme.Spacing.md) {
                 Button(action: {
                     Task {
                         await viewModel.confirmCapture()
                     }
                 }) {
-                    HStack {
+                    HStack(spacing: AppTheme.Spacing.sm) {
                         Image(systemName: "sparkles")
-                        Text("Analyze")
+                        Text("Analyze Food")
                     }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.green)
-                    .foregroundStyle(.white)
-                    .cornerRadius(12)
                 }
+                .buttonStyle(AccentButtonStyle())
+                
+                Button(action: {
+                    viewModel.cancel()
+                }) {
+                    Text("Retake Photo")
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
-            .padding(.horizontal)
+            .padding(.horizontal, AppTheme.Spacing.xl)
             
             Spacer()
         }
@@ -224,19 +274,21 @@ struct FoodTabView: View {
     // MARK: - Processing View
     
     private func processingView(title: String, subtitle: String) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: AppTheme.Spacing.xxl) {
             Spacer()
             
             ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.accent))
                 .scaleEffect(1.5)
             
-            VStack(spacing: 8) {
+            VStack(spacing: AppTheme.Spacing.sm) {
                 Text(title)
-                    .font(.headline)
+                    .font(AppTheme.Typography.headline())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
                 
                 Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.body())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
             }
             
             Spacer()
@@ -246,20 +298,20 @@ struct FoodTabView: View {
     // MARK: - Success View
     
     private var successView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: AppTheme.Spacing.xxl) {
             Spacer()
             
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 80))
-                .foregroundStyle(.green)
+                .foregroundStyle(AppTheme.Colors.accent)
             
             Text("Meal Logged!")
-                .font(.title2)
-                .fontWeight(.semibold)
+                .font(AppTheme.Typography.displayMedium())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
             
             Text("Your food has been added to your diary.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
             
             Spacer()
         }
@@ -268,35 +320,62 @@ struct FoodTabView: View {
     // MARK: - Error View
     
     private func errorView(message: String) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: AppTheme.Spacing.xxl) {
             Spacer()
             
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 60))
-                .foregroundStyle(.red)
+                .foregroundStyle(AppTheme.Colors.error)
             
             Text("Something went wrong")
-                .font(.headline)
+                .font(AppTheme.Typography.headline())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
             
             Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                .padding(.horizontal, AppTheme.Spacing.xl)
             
-            Button(action: {
+            Button("Try Again") {
                 viewModel.reset()
-            }) {
-                Text("Try Again")
-                    .font(.headline)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 12)
-                    .background(Color.blue)
-                    .foregroundStyle(.white)
-                    .cornerRadius(12)
             }
+            .buttonStyle(AccentButtonStyle(isFullWidth: false))
             
             Spacer()
+        }
+    }
+}
+
+// MARK: - Nutrition Stat View
+
+struct NutritionStatView: View {
+    let value: String
+    let label: String
+    let progress: Double
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: AppTheme.Spacing.sm) {
+            // Circular progress
+            ZStack {
+                Circle()
+                    .stroke(color.opacity(0.2), lineWidth: 4)
+                
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                
+                Text(value)
+                    .font(AppTheme.Typography.captionMedium())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+            }
+            .frame(width: 55, height: 55)
+            
+            Text(label)
+                .font(AppTheme.Typography.labelSmall())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
         }
     }
 }
@@ -304,5 +383,7 @@ struct FoodTabView: View {
 // MARK: - Preview
 
 #Preview {
-    FoodTabView()
+    NavigationStack {
+        FoodTabView()
+    }
 }

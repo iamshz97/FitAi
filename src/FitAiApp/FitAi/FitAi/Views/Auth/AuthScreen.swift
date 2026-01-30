@@ -9,16 +9,14 @@ import SwiftUI
 
 // MARK: - Auth Screen
 
-/// The main authentication screen for sign in and sign up.
-/// This view is designed to be minimal and easily extensible.
+/// The authentication screen with premium dark green design.
+/// Supports both sign in and sign up modes.
 struct AuthScreen: View {
     
-    // MARK: - Environment
+    // MARK: - State
     
     @EnvironmentObject private var viewModel: AuthViewModel
     @FocusState private var focusedField: Field?
-    
-    // MARK: - Field Focus
     
     private enum Field {
         case email
@@ -28,26 +26,27 @@ struct AuthScreen: View {
     // MARK: - Body
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 32) {
-                // Header
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: AppTheme.Spacing.xxxl) {
+                Spacer(minLength: 60)
+                
+                // Logo & Header
                 headerSection
                 
-                // Form Fields
+                // Form
                 formSection
                 
                 // Action Button
                 actionButton
                 
-                // Toggle Auth Mode
+                // Toggle Mode
                 toggleModeButton
                 
-                Spacer()
+                Spacer(minLength: 60)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 60)
+            .padding(.horizontal, AppTheme.Spacing.xxl)
         }
-        .background(Color(.systemBackground))
+        .appBackground()
         .onTapGesture {
             focusedField = nil
         }
@@ -56,81 +55,96 @@ struct AuthScreen: View {
     // MARK: - Header Section
     
     private var headerSection: some View {
-        VStack(spacing: 12) {
-            // App Icon/Logo placeholder
-            Image(systemName: "figure.run.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(.blue)
+        VStack(spacing: AppTheme.Spacing.lg) {
+            // App Icon
+            ZStack {
+                Circle()
+                    .fill(AppTheme.Colors.accent.opacity(0.15))
+                    .frame(width: 100, height: 100)
+                
+                Image(systemName: "figure.run")
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.accent)
+            }
             
-            Text("FitAi")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            
-            Text(viewModel.authMode.title)
-                .font(.title2)
-                .foregroundStyle(.secondary)
+            // Title
+            VStack(spacing: AppTheme.Spacing.xs) {
+                Text("FitAi")
+                    .font(AppTheme.Typography.displayLarge())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                
+                Text(viewModel.authMode == .signIn ? "Welcome back" : "Create your account")
+                    .font(AppTheme.Typography.body())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+            }
         }
     }
     
     // MARK: - Form Section
     
     private var formSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AppTheme.Spacing.lg) {
             // Email Field
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 Text("Email")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.captionMedium())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
                 
-                TextField("Enter your email", text: $viewModel.email)
-                    .textFieldStyle(.plain)
+                TextField("", text: $viewModel.email, prompt: Text("Enter your email").foregroundStyle(AppTheme.Colors.textTertiary))
+                    .font(AppTheme.Typography.body())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
                     .keyboardType(.emailAddress)
                     .textContentType(.emailAddress)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
                     .focused($focusedField, equals: .email)
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
+                    .padding(AppTheme.Spacing.lg)
+                    .background(AppTheme.Colors.cardBackground)
+                    .cornerRadius(AppTheme.CornerRadius.medium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                            .stroke(
+                                focusedField == .email ? AppTheme.Colors.accent : AppTheme.Colors.chipBorder,
+                                lineWidth: 1
+                            )
+                    )
             }
             
             // Password Field
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                 Text("Password")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.captionMedium())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
                 
-                SecureField("Enter your password", text: $viewModel.password)
-                    .textFieldStyle(.plain)
-                    .textContentType(viewModel.authMode == .signUp ? .newPassword : .password)
+                SecureField("", text: $viewModel.password, prompt: Text("Enter your password").foregroundStyle(AppTheme.Colors.textTertiary))
+                    .font(AppTheme.Typography.body())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .textContentType(viewModel.authMode == .signIn ? .password : .newPassword)
                     .focused($focusedField, equals: .password)
-                    .padding()
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
-                
-                // Password hint for sign up
-                if viewModel.showPasswordHint {
-                    Text("Password must be at least 6 characters")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
+                    .padding(AppTheme.Spacing.lg)
+                    .background(AppTheme.Colors.cardBackground)
+                    .cornerRadius(AppTheme.CornerRadius.medium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                            .stroke(
+                                focusedField == .password ? AppTheme.Colors.accent : AppTheme.Colors.chipBorder,
+                                lineWidth: 1
+                            )
+                    )
             }
             
             // Error Message
             if let errorMessage = viewModel.errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Image(systemName: "exclamationmark.circle.fill")
                     Text(errorMessage)
-                        .font(.subheadline)
-                        .foregroundStyle(.red)
                 }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(12)
+                .font(AppTheme.Typography.caption())
+                .foregroundStyle(AppTheme.Colors.error)
+                .padding(AppTheme.Spacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppTheme.Colors.error.opacity(0.1))
+                .cornerRadius(AppTheme.CornerRadius.small)
             }
         }
     }
@@ -141,25 +155,25 @@ struct AuthScreen: View {
         Button(action: {
             focusedField = nil
             Task {
-                await viewModel.performCurrentAction()
-            }
-        }) {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                if viewModel.authMode == .signIn {
+                    await viewModel.signIn()
                 } else {
-                    Text(viewModel.authMode.buttonTitle)
-                        .fontWeight(.semibold)
+                    await viewModel.signUp()
                 }
             }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(viewModel.isFormValid ? Color.blue : Color.gray)
-            .foregroundStyle(.white)
-            .cornerRadius(12)
+        }) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                if viewModel.isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
+                } else {
+                    Text(viewModel.authMode == .signIn ? "Sign In" : "Create Account")
+                }
+            }
         }
-        .disabled(!viewModel.isFormValid || viewModel.isLoading)
+        .buttonStyle(AccentButtonStyle())
+        .disabled(viewModel.isLoading || viewModel.email.isEmpty || viewModel.password.isEmpty)
+        .opacity(viewModel.email.isEmpty || viewModel.password.isEmpty ? 0.6 : 1.0)
     }
     
     // MARK: - Toggle Mode Button
@@ -170,9 +184,15 @@ struct AuthScreen: View {
                 viewModel.toggleAuthMode()
             }
         }) {
-            Text(viewModel.authMode.alternateTitle)
-                .font(.subheadline)
-                .foregroundStyle(.blue)
+            HStack(spacing: AppTheme.Spacing.xs) {
+                Text(viewModel.authMode == .signIn ? "Don't have an account?" : "Already have an account?")
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                
+                Text(viewModel.authMode == .signIn ? "Sign Up" : "Sign In")
+                    .foregroundStyle(AppTheme.Colors.accent)
+                    .fontWeight(.semibold)
+            }
+            .font(AppTheme.Typography.body())
         }
         .disabled(viewModel.isLoading)
     }
@@ -181,7 +201,6 @@ struct AuthScreen: View {
 // MARK: - Preview
 
 #Preview {
-    // Create a mock auth service for preview
     let mockProvider = SupabaseClientProvider()
     let authService = SupabaseAuthService(clientProvider: mockProvider)
     let viewModel = AuthViewModel(authService: authService)

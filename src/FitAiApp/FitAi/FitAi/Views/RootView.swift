@@ -41,17 +41,28 @@ struct RootView: View {
     // MARK: - Loading View
     
     private var loadingView: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: AppTheme.Spacing.xl) {
+            // App Logo
+            ZStack {
+                Circle()
+                    .fill(AppTheme.Colors.accent.opacity(0.15))
+                    .frame(width: 100, height: 100)
+                
+                Image(systemName: "figure.run")
+                    .font(.system(size: 40, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.accent)
+            }
+            
             ProgressView()
-                .progressViewStyle(CircularProgressViewStyle())
-                .scaleEffect(1.5)
+                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.accent))
+                .scaleEffect(1.2)
             
             Text("Loading...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
+        .appBackground()
     }
 }
 
@@ -65,4 +76,3 @@ struct RootView: View {
     return RootView()
         .environmentObject(viewModel)
 }
-

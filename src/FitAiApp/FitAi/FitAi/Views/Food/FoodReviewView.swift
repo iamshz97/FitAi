@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Food Review View
 
-/// View for reviewing and editing detected food entries before submission.
+/// View for reviewing and editing detected food entries with premium dark green design.
 struct FoodReviewView: View {
     
     // MARK: - Properties
@@ -24,29 +24,45 @@ struct FoodReviewView: View {
         VStack(spacing: 0) {
             // Header with image
             if let image = viewModel.capturedImage {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(height: 200)
-                    .clipped()
-                    .overlay(
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.3)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                ZStack(alignment: .bottom) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 180)
+                        .clipped()
+                    
+                    // Gradient overlay
+                    LinearGradient(
+                        colors: [.clear, AppTheme.Colors.background],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
+                    .frame(height: 80)
+                }
             }
             
             // Food entries list
-            ScrollView {
-                VStack(spacing: 16) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: AppTheme.Spacing.lg) {
                     // Summary card
                     summaryCard
                     
+                    // Section header
+                    HStack {
+                        Text("Detected Foods")
+                            .font(AppTheme.Typography.headline())
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                        
+                        Spacer()
+                        
+                        Text("\(viewModel.editableFoodEntries.count) items")
+                            .font(AppTheme.Typography.caption())
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                    }
+                    
                     // Food entries
                     ForEach(Array(viewModel.editableFoodEntries.enumerated()), id: \.element.id) { index, entry in
-                        FoodEntryCard(
+                        FoodEntryCardStyled(
                             entry: entry,
                             onEdit: {
                                 editingEntry = entry
@@ -60,21 +76,25 @@ struct FoodReviewView: View {
                         )
                     }
                     
-                    // Add more hint
+                    // Empty state
                     if viewModel.editableFoodEntries.isEmpty {
                         emptyStateView
                     }
+                    
+                    Spacer(minLength: 100)
                 }
-                .padding()
+                .padding(.horizontal, AppTheme.Spacing.xl)
+                .padding(.top, AppTheme.Spacing.lg)
             }
             
             // Bottom buttons
             bottomButtons
         }
+        .appBackground()
         .sheet(isPresented: $showEditSheet) {
             if let entry = editingEntry,
                let index = viewModel.editableFoodEntries.firstIndex(where: { $0.id == entry.id }) {
-                FoodEntryEditSheet(
+                FoodEntryEditSheetStyled(
                     entry: entry,
                     onSave: { updatedEntry in
                         viewModel.updateFoodEntry(at: index, with: updatedEntry)
@@ -91,123 +111,147 @@ struct FoodReviewView: View {
     // MARK: - Summary Card
     
     private var summaryCard: some View {
-        VStack(spacing: 12) {
-            Text("Meal Summary")
-                .font(.headline)
+        VStack(spacing: AppTheme.Spacing.lg) {
+            Text("MEAL SUMMARY")
+                .font(AppTheme.Typography.label())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
             
-            HStack(spacing: 24) {
-                MacroItem(label: "Calories", value: "\(viewModel.totalCalories)", unit: "kcal", color: .orange)
-                MacroItem(label: "Protein", value: String(format: "%.0f", viewModel.totalProtein), unit: "g", color: .red)
-                MacroItem(label: "Carbs", value: String(format: "%.0f", viewModel.totalCarbs), unit: "g", color: .blue)
-                MacroItem(label: "Fat", value: String(format: "%.0f", viewModel.totalFat), unit: "g", color: .yellow)
+            HStack(spacing: AppTheme.Spacing.xl) {
+                MacroItemStyled(label: "Calories", value: "\(viewModel.totalCalories)", unit: "kcal", color: AppTheme.Colors.warning)
+                
+                Divider()
+                    .frame(height: 40)
+                    .background(AppTheme.Colors.chipBorder)
+                
+                MacroItemStyled(label: "Protein", value: String(format: "%.0f", viewModel.totalProtein), unit: "g", color: AppTheme.Colors.error)
+                
+                Divider()
+                    .frame(height: 40)
+                    .background(AppTheme.Colors.chipBorder)
+                
+                MacroItemStyled(label: "Carbs", value: String(format: "%.0f", viewModel.totalCarbs), unit: "g", color: AppTheme.Colors.info)
+                
+                Divider()
+                    .frame(height: 40)
+                    .background(AppTheme.Colors.chipBorder)
+                
+                MacroItemStyled(label: "Fat", value: String(format: "%.0f", viewModel.totalFat), unit: "g", color: AppTheme.Colors.accent)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(16)
+        .padding(AppTheme.Spacing.xl)
+        .cardStyle()
     }
     
     // MARK: - Empty State
     
     private var emptyStateView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: AppTheme.Spacing.md) {
             Image(systemName: "fork.knife")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(AppTheme.Colors.textTertiary)
+            
             Text("No food items detected")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
         }
-        .padding(.vertical, 32)
+        .padding(.vertical, AppTheme.Spacing.xxxl)
     }
     
     // MARK: - Bottom Buttons
     
     private var bottomButtons: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: AppTheme.Spacing.md) {
             // Confirm button
             Button(action: {
                 Task {
                     await viewModel.submitFoodEntries()
                 }
             }) {
-                HStack {
+                HStack(spacing: AppTheme.Spacing.sm) {
                     if case .submitting = viewModel.state {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                     } else {
                         Image(systemName: "checkmark.circle.fill")
                         Text("Confirm & Log Meal")
                     }
                 }
-                .font(.headline)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(viewModel.editableFoodEntries.isEmpty ? Color.gray : Color.green)
-                .foregroundStyle(.white)
-                .cornerRadius(12)
             }
+            .buttonStyle(AccentButtonStyle())
             .disabled(viewModel.editableFoodEntries.isEmpty || viewModel.state == .submitting)
+            .opacity(viewModel.editableFoodEntries.isEmpty ? 0.5 : 1.0)
             
             // Cancel button
             Button(action: {
                 viewModel.cancel()
             }) {
                 Text("Cancel")
-                    .foregroundStyle(.red)
+                    .font(AppTheme.Typography.bodyMedium())
+                    .foregroundStyle(AppTheme.Colors.error)
             }
             .disabled(viewModel.state == .submitting)
         }
-        .padding()
-        .background(Color(.systemBackground))
+        .padding(AppTheme.Spacing.xl)
+        .background(AppTheme.Colors.backgroundSecondary)
     }
 }
 
-// MARK: - Macro Item
+// MARK: - Macro Item Styled
 
-struct MacroItem: View {
+struct MacroItemStyled: View {
     let label: String
     let value: String
     let unit: String
     let color: Color
     
     var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundStyle(color)
-            Text(unit)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        VStack(spacing: AppTheme.Spacing.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value)
+                    .font(AppTheme.Typography.headline())
+                    .foregroundStyle(color)
+                
+                Text(unit)
+                    .font(AppTheme.Typography.labelSmall())
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+            }
+            
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(AppTheme.Typography.labelSmall())
+                .foregroundStyle(AppTheme.Colors.textSecondary)
         }
     }
 }
 
-// MARK: - Food Entry Card
+// MARK: - Food Entry Card Styled
 
-struct FoodEntryCard: View {
+struct FoodEntryCardStyled: View {
     let entry: FoodEntry
     let onEdit: () -> Void
     let onDelete: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: AppTheme.Spacing.lg) {
             // Food icon
-            Image(systemName: "fork.knife.circle.fill")
-                .font(.title)
-                .foregroundStyle(.green)
+            ZStack {
+                Circle()
+                    .fill(AppTheme.Colors.accent.opacity(0.15))
+                    .frame(width: 44, height: 44)
+                
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 18))
+                    .foregroundStyle(AppTheme.Colors.accent)
+            }
             
             // Food details
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 Text(entry.name)
-                    .font(.headline)
+                    .font(AppTheme.Typography.bodyMedium())
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                
                 Text(entry.macrosSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.caption())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
             }
             
             Spacer()
@@ -215,12 +259,12 @@ struct FoodEntryCard: View {
             // Calories
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(entry.calories)")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.orange)
+                    .font(AppTheme.Typography.headline())
+                    .foregroundStyle(AppTheme.Colors.warning)
+                
                 Text("kcal")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.labelSmall())
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
             }
             
             // Actions
@@ -232,100 +276,149 @@ struct FoodEntryCard: View {
                     Label("Delete", systemImage: "trash")
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 18))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .frame(width: 32, height: 32)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .cornerRadius(12)
+        .padding(AppTheme.Spacing.lg)
+        .cardStyle()
     }
 }
 
-// MARK: - Food Entry Edit Sheet
+// MARK: - Food Entry Edit Sheet Styled
 
-struct FoodEntryEditSheet: View {
+struct FoodEntryEditSheetStyled: View {
     @State var entry: FoodEntry
     let onSave: (FoodEntry) -> Void
     let onCancel: () -> Void
     
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Food Details") {
-                    TextField("Name", text: $entry.name)
-                }
-                
-                Section("Nutrition") {
-                    HStack {
-                        Text("Calories")
-                        Spacer()
-                        TextField("", value: $entry.calories, format: .number)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                        Text("kcal")
-                            .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(spacing: AppTheme.Spacing.xxl) {
+                    // Food Name
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                        Text("Food Name")
+                            .font(AppTheme.Typography.captionMedium())
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                        
+                        TextField("", text: $entry.name)
+                            .font(AppTheme.Typography.body())
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                            .padding(AppTheme.Spacing.lg)
+                            .background(AppTheme.Colors.cardBackground)
+                            .cornerRadius(AppTheme.CornerRadius.medium)
                     }
                     
-                    HStack {
-                        Text("Protein")
-                        Spacer()
-                        TextField("", value: $entry.protein, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                        Text("g")
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Carbs")
-                        Spacer()
-                        TextField("", value: $entry.carbs, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                        Text("g")
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Fat")
-                        Spacer()
-                        TextField("", value: $entry.fat, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                        Text("g")
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Fiber")
-                        Spacer()
-                        TextField("", value: $entry.fiber, format: .number)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
-                        Text("g")
-                            .foregroundStyle(.secondary)
+                    // Nutrition
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                        Text("Nutrition")
+                            .font(AppTheme.Typography.captionMedium())
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                        
+                        NutritionInputRow(label: "Calories", value: $entry.calories, unit: "kcal", color: AppTheme.Colors.warning)
+                        NutritionInputRowDouble(label: "Protein", value: $entry.protein, unit: "g", color: AppTheme.Colors.error)
+                        NutritionInputRowDouble(label: "Carbs", value: $entry.carbs, unit: "g", color: AppTheme.Colors.info)
+                        NutritionInputRowDouble(label: "Fat", value: $entry.fat, unit: "g", color: AppTheme.Colors.accent)
+                        NutritionInputRowDouble(label: "Fiber", value: $entry.fiber, unit: "g", color: AppTheme.Colors.accentSecondary)
                     }
                 }
-                
-                Section("Notes") {
-                    TextField("Optional notes", text: $entry.notes, axis: .vertical)
-                        .lineLimit(3...6)
-                }
+                .padding(AppTheme.Spacing.xl)
             }
+            .appBackground()
             .navigationTitle("Edit Food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         onSave(entry)
                     }
+                    .foregroundStyle(AppTheme.Colors.accent)
+                    .fontWeight(.semibold)
                 }
             }
+            .toolbarBackground(AppTheme.Colors.backgroundSecondary, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+        }
+    }
+}
+
+// MARK: - Nutrition Input Row
+
+struct NutritionInputRow: View {
+    let label: String
+    @Binding var value: Int
+    let unit: String
+    let color: Color
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+            
+            Spacer()
+            
+            HStack(spacing: AppTheme.Spacing.sm) {
+                TextField("", value: $value, format: .number)
+                    .font(AppTheme.Typography.bodyMedium())
+                    .foregroundStyle(color)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 60)
+                
+                Text(unit)
+                    .font(AppTheme.Typography.caption())
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                    .frame(width: 35, alignment: .leading)
+            }
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.sm)
+            .background(AppTheme.Colors.cardBackground)
+            .cornerRadius(AppTheme.CornerRadius.small)
+        }
+    }
+}
+
+struct NutritionInputRowDouble: View {
+    let label: String
+    @Binding var value: Double
+    let unit: String
+    let color: Color
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+            
+            Spacer()
+            
+            HStack(spacing: AppTheme.Spacing.sm) {
+                TextField("", value: $value, format: .number)
+                    .font(AppTheme.Typography.bodyMedium())
+                    .foregroundStyle(color)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 60)
+                
+                Text(unit)
+                    .font(AppTheme.Typography.caption())
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                    .frame(width: 35, alignment: .leading)
+            }
+            .padding(.horizontal, AppTheme.Spacing.md)
+            .padding(.vertical, AppTheme.Spacing.sm)
+            .background(AppTheme.Colors.cardBackground)
+            .cornerRadius(AppTheme.CornerRadius.small)
         }
     }
 }
@@ -340,7 +433,6 @@ struct FoodEntryEditSheet: View {
         analysisService: mockAnalysisService
     )
     
-    // Set up mock data
     viewModel.editableFoodEntries = FoodEntry.samples
     
     return FoodReviewView(viewModel: viewModel)
