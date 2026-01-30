@@ -25,11 +25,15 @@ struct RootView: View {
     
     @EnvironmentObject private var authViewModel: AuthViewModel
     
+    // MARK: - Dependencies
+    
+    /// Profile service - passed from FitAiApp to ensure same Supabase client
+    let profileService: SupabaseUserProfileService
+    
     // MARK: - State
     
     @State private var appState: AppState = .loading
     @State private var onboardingComplete: Bool = false
-    @State private var profileService: SupabaseUserProfileService?
     
     // MARK: - Body
     
@@ -43,14 +47,10 @@ struct RootView: View {
                 AuthScreen()
                 
             case .onboarding:
-                if let service = profileService {
-                    OnboardingContainerView(
-                        profileService: service,
-                        isOnboardingComplete: $onboardingComplete
-                    )
-                } else {
-                    loadingView
-                }
+                OnboardingContainerView(
+                    profileService: profileService,
+                    isOnboardingComplete: $onboardingComplete
+                )
                 
             case .authenticated:
                 MainTabView()
@@ -90,13 +90,8 @@ struct RootView: View {
     // MARK: - Check Onboarding State
     
     private func checkOnboardingState() async {
-        // Initialize profile service
-        let clientProvider = SupabaseClientProvider()
-        let service = SupabaseUserProfileService(clientProvider: clientProvider)
-        profileService = service
-        
         do {
-            if let profile = try await service.fetchProfile() {
+            if let profile = try await profileService.fetchProfile() {
                 if profile.onboardingCompleted {
                     appState = .authenticated
                 } else {
@@ -104,7 +99,7 @@ struct RootView: View {
                 }
             } else {
                 // No profile exists yet - create one and start onboarding
-                _ = try await service.createProfile()
+                _ = try await profileService.createProfile()
                 appState = .onboarding
             }
         } catch {
@@ -147,8 +142,9 @@ struct RootView: View {
 #Preview {
     let mockProvider = SupabaseClientProvider()
     let authService = SupabaseAuthService(clientProvider: mockProvider)
+    let profileService = SupabaseUserProfileService(clientProvider: mockProvider)
     let viewModel = AuthViewModel(authService: authService)
     
-    return RootView()
+    return RootView(profileService: profileService)
         .environmentObject(viewModel)
 }

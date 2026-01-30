@@ -7,6 +7,19 @@
 
 import SwiftUI
 
+// MARK: - Environment Key for Client Provider
+
+private struct ClientProviderKey: EnvironmentKey {
+    static let defaultValue: SupabaseClientProviding = SupabaseClientProvider()
+}
+
+extension EnvironmentValues {
+    var clientProvider: SupabaseClientProviding {
+        get { self[ClientProviderKey.self] }
+        set { self[ClientProviderKey.self] = newValue }
+    }
+}
+
 @main
 struct FitAiApp: App {
     
@@ -18,20 +31,25 @@ struct FitAiApp: App {
     /// The authentication service
     private let authService: AuthService
     
+    /// The user profile service
+    private let profileService: SupabaseUserProfileService
+    
     /// The authentication view model (shared across the app)
     @StateObject private var authViewModel: AuthViewModel
     
     // MARK: - Initialization
     
     init() {
-        // Create the dependency chain
+        // Create the dependency chain - SINGLE client provider
         let provider = SupabaseClientProvider()
-        let service = SupabaseAuthService(clientProvider: provider)
-        let viewModel = AuthViewModel(authService: service)
+        let authSvc = SupabaseAuthService(clientProvider: provider)
+        let profileSvc = SupabaseUserProfileService(clientProvider: provider)
+        let viewModel = AuthViewModel(authService: authSvc)
         
         // Store references
         self.clientProvider = provider
-        self.authService = service
+        self.authService = authSvc
+        self.profileService = profileSvc
         self._authViewModel = StateObject(wrappedValue: viewModel)
     }
     
@@ -39,8 +57,9 @@ struct FitAiApp: App {
     
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(profileService: profileService)
                 .environmentObject(authViewModel)
+                .environment(\.clientProvider, clientProvider)
         }
     }
 }
