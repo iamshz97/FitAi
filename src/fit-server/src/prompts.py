@@ -177,10 +177,3 @@ DO NOT use the write_todos tool"""
 
 
 
-# ==================== Subagent Descriptions ====================
-
-REASONING_SUBAGENT_DESCRIPTION = "Analyzes user profiles using systematic task-generation logic to produce context-aware instructions for planning agents."
-
-WORKOUT_SUBAGENT_DESCRIPTION = "Creates personalized workout plans. Receives profile + task instructions + response format. Outputs JSON with summary field."
-
-MEAL_SUBAGENT_DESCRIPTION = "Creates personalized meal/nutrition plans. Receives profile + task instructions + response format. Outputs JSON with summary field."

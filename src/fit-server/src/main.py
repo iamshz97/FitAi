@@ -2,40 +2,34 @@ import os
 import json
 import uuid
 import time
+import pathlib
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from deepagents import create_deep_agent
-from langgraph.checkpoint.memory import MemorySaver
-import pathlib
 
 # Import model configuration
-from .model_config import (
-    DEFAULT_MODEL,
-    MODEL_PROVIDER,
+from model_config import (
     MODEL_NAME,
-    validate_api_keys
+    validate_api_keys,
+    client as openai_client
 )
 
 # Import prompts
-from .prompts import (
+from prompts import (
     REASONING_SUBAGENT_SYSTEM_PROMPT,
-    REASONING_SUBAGENT_DESCRIPTION,
     WORKOUT_SUBAGENT_SYSTEM_PROMPT,
-    WORKOUT_SUBAGENT_DESCRIPTION,
     MEAL_SUBAGENT_SYSTEM_PROMPT,
-    MEAL_SUBAGENT_DESCRIPTION,
     COORDINATOR_SYSTEM_PROMPT
 )
 
 # Import Pydantic models
-from .models import (
+from models import (
     UserProfile,
     WorkoutDay,
     WorkoutPlan,
@@ -74,11 +68,11 @@ async def lifespan(app: FastAPI):
         raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
     
     # Validate API keys for the configured model
-    validate_api_keys(MODEL_PROVIDER)
+    validate_api_keys()
     
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     print(f"✅ Connected to Supabase")
-    print(f"🤖 Using model: {MODEL_NAME} (provider: {MODEL_PROVIDER})")
+    print(f"🤖 Using model: {MODEL_NAME}")
     yield
     print("👋 Shutting down...")
 
@@ -86,7 +80,7 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI app
 app = FastAPI(
     title="FitAI - Personalized Fitness & Meal Planner",
-    description="AI-powered workout and meal plan generator using LangChain Deep Agents",
+    description="AI-powered workout and meal plan generator using OpenAI SDK",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -243,30 +237,108 @@ def fetch_user_profile(user_id: str) -> dict:
         return {"error": f"Failed to fetch user profile: {str(e)}"}
 
 
-# ==================== Subagent Definitions ====================
+# ==================== OpenAI Tool Schemas ====================
 
-reasoning_subagent = {
-    "name": "task-reasoner",
-    "description": REASONING_SUBAGENT_DESCRIPTION,
-    "system_prompt": REASONING_SUBAGENT_SYSTEM_PROMPT,
-    "tools": [calculate_bmr, calculate_tdee, fetch_user_profile],
-    "model": DEFAULT_MODEL,
-}
+FIT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_bmr",
+            "description": "Calculate Basal Metabolic Rate using Mifflin-St Jeor equation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "age": {"type": "integer"},
+                    "gender": {"type": "string", "enum": ["male", "female"]},
+                    "height": {"type": "number", "description": "Height in cm"},
+                    "weight": {"type": "number", "description": "Weight in kg"},
+                },
+                "required": ["age", "gender", "height", "weight"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_tdee",
+            "description": "Calculate Total Daily Energy Expenditure.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bmr": {"type": "number"},
+                    "activity_level": {"type": "string", "enum": ["beginner", "intermediate", "advanced"]},
+                },
+                "required": ["bmr", "activity_level"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_calorie_target",
+            "description": "Get daily calorie target based on goal.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tdee": {"type": "number"},
+                    "goal": {"type": "string", "enum": ["weight_loss", "muscle_gain", "maintenance", "endurance", "flexibility", "general_fitness"]},
+                },
+                "required": ["tdee", "goal"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_current_workout_plan",
+            "description": "Fetch the user's current workout plan from the database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "string"},
+                },
+                "required": ["user_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_current_meal_plan",
+            "description": "Fetch the user's current meal plan from the database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "string"},
+                },
+                "required": ["user_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_user_profile",
+            "description": "Fetch the user's profile from their most recent plan.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "string"},
+                },
+                "required": ["user_id"],
+            },
+        },
+    }
+]
 
-workout_subagent = {
-    "name": "workout-planner",
-    "description": WORKOUT_SUBAGENT_DESCRIPTION,
-    "system_prompt": WORKOUT_SUBAGENT_SYSTEM_PROMPT,
-    "tools": [calculate_bmr, calculate_tdee, fetch_current_workout_plan, fetch_user_profile],
-    "model": DEFAULT_MODEL,
-}
-
-meal_subagent = {
-    "name": "meal-planner",
-    "description": MEAL_SUBAGENT_DESCRIPTION,
-    "system_prompt": MEAL_SUBAGENT_SYSTEM_PROMPT,
-    "tools": [calculate_bmr, calculate_tdee, get_calorie_target, fetch_current_meal_plan, fetch_user_profile],
-    "model": DEFAULT_MODEL,
+# Tool mapper
+TOOL_MAP = {
+    "calculate_bmr": calculate_bmr,
+    "calculate_tdee": calculate_tdee,
+    "get_calorie_target": get_calorie_target,
+    "fetch_current_workout_plan": fetch_current_workout_plan,
+    "fetch_current_meal_plan": fetch_current_meal_plan,
+    "fetch_user_profile": fetch_user_profile,
 }
 
 
@@ -298,30 +370,53 @@ def load_skills() -> dict:
     return skills_files
 
 
-def create_fitness_agent(thread_id: str = None):
-    """Create the main fitness planning agent with subagents."""
-    checkpointer = MemorySaver()
-    
-    return create_deep_agent(
-        model=DEFAULT_MODEL,
-        name="fitness-coordinator",
-        checkpointer=checkpointer,
-        system_prompt=COORDINATOR_SYSTEM_PROMPT,
-        subagents=[reasoning_subagent, workout_subagent, meal_subagent]
-    )
-
-
-# ==================== Helper Functions ====================
-
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=2, min=4, max=30),
     reraise=True
 )
-def invoke_agent_with_retry(agent, messages: dict, thread_id: str = None):
-    """Invoke agent with retry logic for rate limits."""
-    config = {"configurable": {"thread_id": thread_id}} if thread_id else None
-    return agent.invoke(messages, config=config)
+def call_openai_with_tools(messages: list, system_prompt: str = None, tools: list = None) -> str:
+    """Helper function to call OpenAI with tool support."""
+    all_messages = []
+    if system_prompt:
+        all_messages.append({"role": "system", "content": system_prompt})
+    all_messages.extend(messages)
+    
+    response = openai_client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=all_messages,
+        tools=tools,
+        tool_choice="auto" if tools else None
+    )
+    
+    response_message = response.choices[0].message
+    tool_calls = response_message.tool_calls
+    
+    if tool_calls:
+        all_messages.append(response_message)
+        for tool_call in tool_calls:
+            function_name = tool_call.function.name
+            function_to_call = TOOL_MAP.get(function_name)
+            function_args = json.loads(tool_call.function.arguments)
+            
+            print(f"🛠️ Calling tool: {function_name} with {function_args}")
+            function_response = function_to_call(**function_args)
+            
+            all_messages.append({
+                "tool_call_id": tool_call.id,
+                "role": "tool",
+                "name": function_name,
+                "content": json.dumps(function_response),
+            })
+        
+        # Call again with tool results
+        second_response = openai_client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=all_messages,
+        )
+        return second_response.choices[0].message.content
+    
+    return response_message.content
 
 
 def extract_message_content(content) -> str:
@@ -491,10 +586,6 @@ async def analyze_profile(profile: ComprehensiveProfile):
     WITHOUT generating the actual plans.
     """
     try:
-        # Create the fitness agent
-        thread_id = f"analyze_{profile.user_id}_{uuid.uuid4().hex[:8]}"
-        agent = create_fitness_agent(thread_id)
-        
         # Calculate BMI if not provided
         bc = profile.body_composition
         height_m = bc.height_cm / 100
@@ -624,7 +715,7 @@ CALCULATED METRICS:
         print(f"   PAR-Q+ flags: {parq_flags}")
         print(f"   Medical clearance required: {requires_medical_clearance}")
         
-        # Run the Reasoning Subagent
+        # Run the Reasoning Agent
         reasoning_prompt = f"""
 Analyze this COMPREHENSIVE health profile and generate detailed task-specific instructions.
 
@@ -652,15 +743,11 @@ Return the reasoning output as a JSON object following the exact format specifie
 Be extremely thorough given the comprehensive nature of this profile.
 """
         
-        reasoning_response = invoke_agent_with_retry(
-            agent,
-            {
-                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this comprehensive analysis: {reasoning_prompt}"}]
-            },
-            thread_id=thread_id
+        reasoning_text = call_openai_with_tools(
+            messages=[{"role": "user", "content": reasoning_prompt}],
+            system_prompt=REASONING_SUBAGENT_SYSTEM_PROMPT,
+            tools=FIT_TOOLS
         )
-        reasoning_content = reasoning_response["messages"][-1].content if reasoning_response.get("messages") else ""
-        reasoning_text = extract_message_content(reasoning_content)
         reasoning_output = extract_json_from_response(reasoning_text)
         
         print(f"✅ Analysis complete. Risk level: {reasoning_output.get('risk_level', 'unknown')}")
@@ -712,23 +799,9 @@ Be extremely thorough given the comprehensive nature of this profile.
 async def generate_plan(request: TextProfileRequest):
     """
     Generate personalized workout and meal plans based on text profile description.
-    
-    This endpoint accepts a simple text description of the user's profile and uses
-    a reasoning agent to generate task instructions, which are then passed to
-    workout and meal planning agents.
-    
-    Input format:
-    {
-        "user_id": "optional - auto-generated if not provided",
-        "profile": "Text description including demographics, medical history, goals, constraints"
-    }
     """
     try:
-        # Create the fitness agent with thread for state
-        thread_id = f"plan_{request.user_id}_{uuid.uuid4().hex[:8]}"
-        agent = create_fitness_agent(thread_id)
-        
-        # STEP 1: Run the Reasoning Subagent to generate task instructions
+        # STEP 1: Run the Reasoning Agent to generate task instructions
         print(f"🧠 Step 1: Running task-reasoner to generate task instructions...")
         
         reasoning_prompt = f"""
@@ -748,25 +821,15 @@ Remember: You are ONLY generating instructions/tasks - NOT making conclusions or
 Return the task instructions as structured markdown text.
 """
         
-        reasoning_response = invoke_agent_with_retry(
-            agent, 
-            {
-                "messages": [{"role": "user", "content": f"Use the task-reasoner subagent for this analysis: {reasoning_prompt}"}]
-            },
-            thread_id=thread_id
+        task_instructions = call_openai_with_tools(
+            messages=[{"role": "user", "content": reasoning_prompt}],
+            system_prompt=REASONING_SUBAGENT_SYSTEM_PROMPT,
+            tools=FIT_TOOLS
         )
-        reasoning_content = reasoning_response["messages"][-1].content if reasoning_response.get("messages") else ""
-        reasoning_text = extract_message_content(reasoning_content)
-        
-        # Extract task instructions (it's markdown, not JSON)
-        task_instructions = reasoning_text.strip()
         
         print(f"✅ Task instructions generated ({len(task_instructions)} chars)")
         
-        # Add delay between requests
-        time.sleep(2)
-        
-        # STEP 2: Generate Workout Plan with profile + task + response format
+        # STEP 2: Generate Workout Plan
         print(f"💪 Step 2: Running workout-planner...")
         
         workout_prompt = f"""
@@ -776,44 +839,28 @@ Return the task instructions as structured markdown text.
 {task_instructions}
 """
         
-        workout_response = invoke_agent_with_retry(
-            agent, 
-            {
-                "messages": [{"role": "user", "content": f"Use the workout-planner subagent for this task: {workout_prompt}"}]
-            },
-            thread_id=thread_id
+        workout_text = call_openai_with_tools(
+            messages=[{"role": "user", "content": workout_prompt}],
+            system_prompt=WORKOUT_SUBAGENT_SYSTEM_PROMPT,
+            tools=FIT_TOOLS
         )
         
-        # Debug: Log raw response structure
-        if workout_response.get("messages"):
-            last_msg = workout_response["messages"][-1]
-            print(f"📋 Workout response type: {type(last_msg.content)}")
-            print(f"📋 Workout response content (first 500 chars): {str(last_msg.content)[:500]}")
-        
-        workout_content = workout_response["messages"][-1].content if workout_response.get("messages") else ""
-        workout_text = extract_message_content(workout_content)
-        
         print(f"📋 Extracted workout text (first 500 chars): {workout_text[:500] if workout_text else 'EMPTY'}")
-        
         workout_plan = extract_json_from_response(workout_text, "Workout")
-        
-        print(f"📋 Workout plan keys: {list(workout_plan.keys())}")
-        print(f"📋 Workout summary length: {len(workout_plan.get('summary', ''))}")
         
         # Ensure we have a summary field with actual content
         if "summary" not in workout_plan or not workout_plan.get("summary"):
-            # If no summary, use the raw text or raw_response
             if workout_text:
                 workout_plan = {"summary": workout_text}
             elif "raw_response" in workout_plan:
                 workout_plan = {"summary": workout_plan["raw_response"]}
         
-        print(f"✅ Workout plan generated ({len(workout_plan.get('summary', ''))} chars)")
+        print(f"✅ Workout plan generated")
         
         # Add delay between requests
         time.sleep(2)
         
-        # STEP 3: Generate Meal Plan with same prompt structure
+        # STEP 3: Generate Meal Plan
         print(f"🍎 Step 3: Running meal-planner...")
         
         meal_prompt = f"""
@@ -821,32 +868,16 @@ Return the task instructions as structured markdown text.
 
 **TASK:**
 {task_instructions}
-
 """
         
-        meal_response = invoke_agent_with_retry(
-            agent, 
-            {
-                "messages": [{"role": "user", "content": f"Use the meal-planner subagent for this task: {meal_prompt}"}]
-            },
-            thread_id=thread_id
+        meal_text = call_openai_with_tools(
+            messages=[{"role": "user", "content": meal_prompt}],
+            system_prompt=MEAL_SUBAGENT_SYSTEM_PROMPT,
+            tools=FIT_TOOLS
         )
         
-        # Debug: Log raw response structure
-        if meal_response.get("messages"):
-            last_msg = meal_response["messages"][-1]
-            print(f"📋 Meal response type: {type(last_msg.content)}")
-            print(f"📋 Meal response content (first 500 chars): {str(last_msg.content)[:500]}")
-        
-        meal_content = meal_response["messages"][-1].content if meal_response.get("messages") else ""
-        meal_text = extract_message_content(meal_content)
-        
         print(f"📋 Extracted meal text (first 500 chars): {meal_text[:500] if meal_text else 'EMPTY'}")
-        
         meal_plan = extract_json_from_response(meal_text, "Meal")
-        
-        print(f"📋 Meal plan keys: {list(meal_plan.keys())}")
-        print(f"📋 Meal summary length: {len(meal_plan.get('summary', ''))}")
         
         # Ensure we have a summary field with actual content
         if "summary" not in meal_plan or not meal_plan.get("summary"):
@@ -855,7 +886,7 @@ Return the task instructions as structured markdown text.
             elif "raw_response" in meal_plan:
                 meal_plan = {"summary": meal_plan["raw_response"]}
         
-        print(f"✅ Meal plan generated ({len(meal_plan.get('summary', ''))} chars)")
+        print(f"✅ Meal plan generated")
         print(f"🎉 All plans generated successfully!")
         
         # Generate unique ID for this plan
@@ -919,10 +950,6 @@ async def correct_plan(request: CorrectionRequest):
         current_meal = json.loads(plan["meal_plan"]) if isinstance(plan["meal_plan"], str) else plan["meal_plan"]
         user_profile = json.loads(plan["user_profile"]) if isinstance(plan["user_profile"], str) else plan["user_profile"]
         
-        # Create agent for corrections
-        thread_id = f"correct_{request.user_id}_{uuid.uuid4().hex[:8]}"
-        agent = create_fitness_agent(thread_id)
-        
         corrected_workout = current_workout
         corrected_meal = current_meal
         
@@ -940,24 +967,16 @@ CURRENT WORKOUT PLAN:
 CORRECTION INSTRUCTION:
 {request.instruction}
 
-Please use the workout-planner subagent to apply the requested corrections.
-The subagent should fetch the current plan using fetch_current_workout_plan tool,
-then modify it according to the instruction while keeping the same JSON structure.
+Please apply the requested corrections. Modify the plan according to the instruction while keeping the same JSON structure.
 Return ONLY the corrected JSON workout plan.
 """
             
-            workout_response = invoke_agent_with_retry(
-                agent,
-                {
-                    "messages": [{"role": "user", "content": workout_correction_prompt}]
-                },
-                thread_id=thread_id
+            workout_text = call_openai_with_tools(
+                messages=[{"role": "user", "content": workout_correction_prompt}],
+                system_prompt=WORKOUT_SUBAGENT_SYSTEM_PROMPT,
+                tools=FIT_TOOLS
             )
-            workout_content = workout_response["messages"][-1].content if workout_response.get("messages") else ""
-            workout_text = extract_message_content(workout_content)
             corrected_workout = extract_json_from_response(workout_text)
-            
-            time.sleep(2)
         
         # Correct meal plan if requested
         if request.plan_type in ["meal", "both"]:
@@ -973,21 +992,15 @@ CURRENT MEAL PLAN:
 CORRECTION INSTRUCTION:
 {request.instruction}
 
-Please use the meal-planner subagent to apply the requested corrections.
-The subagent should fetch the current plan using fetch_current_meal_plan tool,
-then modify it according to the instruction while keeping the same JSON structure.
+Please apply the requested corrections. Modify the plan according to the instruction while keeping the same JSON structure.
 Return ONLY the corrected JSON meal plan.
 """
             
-            meal_response = invoke_agent_with_retry(
-                agent,
-                {
-                    "messages": [{"role": "user", "content": meal_correction_prompt}]
-                },
-                thread_id=thread_id
+            meal_text = call_openai_with_tools(
+                messages=[{"role": "user", "content": meal_correction_prompt}],
+                system_prompt=MEAL_SUBAGENT_SYSTEM_PROMPT,
+                tools=FIT_TOOLS
             )
-            meal_content = meal_response["messages"][-1].content if meal_response.get("messages") else ""
-            meal_text = extract_message_content(meal_content)
             corrected_meal = extract_json_from_response(meal_text)
         
         # Update the plan in Supabase
@@ -1080,7 +1093,7 @@ async def delete_plan(plan_id: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "mani:app",
+        "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True
