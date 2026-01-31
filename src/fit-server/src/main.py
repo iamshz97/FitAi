@@ -53,7 +53,13 @@ from .models import (
     PsychologicalFactors,
     Constraints,
     ComprehensiveProfile,
-    AnalysisResponse
+    AnalysisResponse,
+    # Structured workout plan models for LLM output
+    StructuredWorkoutPlan,
+    WorkoutSession,
+    SessionExercise,
+    SessionExerciseDetails,
+    IntensityPrescription
 )
 
 # Load environment variables
@@ -273,29 +279,29 @@ meal_subagent = {
 # ==================== Main Agent ====================
 
 # Skills directory path
-SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
+# SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
 
 
-def load_skills() -> dict:
-    """Load all skills from the skills directory."""
-    skills_files = {}
+# def load_skills() -> dict:
+#     """Load all skills from the skills directory."""
+#     skills_files = {}
     
-    if not SKILLS_DIR.exists():
-        print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
-        return skills_files
+#     if not SKILLS_DIR.exists():
+#         print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
+#         return skills_files
     
-    for skill_dir in SKILLS_DIR.iterdir():
-        if skill_dir.is_dir():
-            skill_file = skill_dir / "SKILL.md"
-            if skill_file.exists():
-                with open(skill_file, 'r', encoding='utf-8') as f:
-                    skill_content = f.read()
-                # Use forward slashes for virtual path
-                virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
-                skills_files[virtual_path] = skill_content
-                print(f"✅ Loaded skill: {skill_dir.name}")
+#     for skill_dir in SKILLS_DIR.iterdir():
+#         if skill_dir.is_dir():
+#             skill_file = skill_dir / "SKILL.md"
+#             if skill_file.exists():
+#                 with open(skill_file, 'r', encoding='utf-8') as f:
+#                     skill_content = f.read()
+#                 # Use forward slashes for virtual path
+#                 virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
+#                 skills_files[virtual_path] = skill_content
+#                 print(f"✅ Loaded skill: {skill_dir.name}")
     
-    return skills_files
+#     return skills_files
 
 
 def create_fitness_agent(thread_id: str = None):
@@ -795,20 +801,21 @@ Return the task instructions as structured markdown text.
         
         print(f"📋 Extracted workout text (first 500 chars): {workout_text[:500] if workout_text else 'EMPTY'}")
         
-        workout_plan = extract_json_from_response(workout_text, "Workout")
+        workout_plan_raw = extract_json_from_response(workout_text, "Workout")
+        
+        # Validate against StructuredWorkoutPlan schema
+        try:
+            validated_workout = StructuredWorkoutPlan.model_validate(workout_plan_raw)
+            workout_plan = validated_workout.model_dump()
+            print(f"✅ Workout plan validated against schema: {validated_workout.name}")
+        except Exception as validation_error:
+            print(f"⚠️ Workout validation failed: {validation_error}")
+            # Fall back to raw response if validation fails
+            workout_plan = workout_plan_raw
         
         print(f"📋 Workout plan keys: {list(workout_plan.keys())}")
-        print(f"📋 Workout summary length: {len(workout_plan.get('summary', ''))}")
         
-        # Ensure we have a summary field with actual content
-        if "summary" not in workout_plan or not workout_plan.get("summary"):
-            # If no summary, use the raw text or raw_response
-            if workout_text:
-                workout_plan = {"summary": workout_text}
-            elif "raw_response" in workout_plan:
-                workout_plan = {"summary": workout_plan["raw_response"]}
-        
-        print(f"✅ Workout plan generated ({len(workout_plan.get('summary', ''))} chars)")
+        print(f"✅ Workout plan generated")
         
         # Add delay between requests
         time.sleep(2)

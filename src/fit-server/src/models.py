@@ -265,3 +265,63 @@ class AnalysisResponse(BaseModel):
     calculated_metrics: dict
     recommendations_summary: str
     analyzed_at: str
+
+
+# ==================== Structured Workout Plan Models (for LLM output) ====================
+
+class IntensityPrescription(BaseModel):
+    """Intensity prescription for an exercise set."""
+    intensity_type_code: str = Field(..., description="Type code: 'rpe', 'percent_1rm', 'hr_zone', etc.")
+    intensity_name: Optional[str] = Field(None, description="Human-readable name like 'Rate of Perceived Exertion'")
+    target_value: float = Field(..., description="Target intensity value")
+    target_value_min: Optional[float] = Field(None, description="Minimum acceptable value")
+    target_value_max: Optional[float] = Field(None, description="Maximum acceptable value")
+    applies_to_sets: Optional[list[int]] = Field(None, description="Which set numbers this applies to, e.g. [1,2,3,4,5]")
+    notes: Optional[str] = Field(None, description="Additional notes like 'Leave 2-3 reps in the tank'")
+
+
+class SessionExerciseDetails(BaseModel):
+    """Details for how an exercise is performed in a specific session."""
+    exercise_order: int = Field(..., ge=1, description="Order of exercise in the session")
+    sets: int = Field(..., ge=1, description="Number of sets")
+    reps: Optional[int] = Field(None, ge=1, description="Number of reps per set (if rep-based)")
+    duration_seconds: Optional[int] = Field(None, description="Duration in seconds (if time-based)")
+    rest_seconds: int = Field(..., ge=0, description="Rest time between sets in seconds")
+    rest_seconds_min: Optional[int] = Field(None, description="Minimum rest time")
+    rest_seconds_max: Optional[int] = Field(None, description="Maximum rest time")
+    load_type: Optional[str] = Field(None, description="Load prescription type: 'rpe_based', 'percent_1rm', 'bodyweight', etc.")
+    tempo: Optional[str] = Field(None, description="Tempo notation like '2-0-1-0' (eccentric-pause-concentric-pause)")
+    notes: Optional[str] = Field(None, description="Exercise-specific notes")
+    intensity_prescriptions: Optional[list[IntensityPrescription]] = Field(default=None, description="Intensity prescriptions for the exercise")
+
+
+class SessionExercise(BaseModel):
+    """An exercise within a workout session."""
+    name: str = Field(..., description="Name of the exercise")
+    category: str = Field(..., description="Exercise category: 'strength', 'cardio', 'mobility', 'plyometric', etc.")
+    equipment: list[str] = Field(default_factory=list, description="Equipment needed: ['barbell', 'rack', 'bench', etc.]")
+    muscle_groups: Optional[list[str]] = Field(default=None, description="Target muscle groups: ['quadriceps', 'glutes', 'core', etc.]")
+    movement_pattern: Optional[str] = Field(None, description="Movement pattern: 'squat', 'hinge', 'push', 'pull', 'carry', etc.")
+    description: Optional[str] = Field(None, description="Description of how to perform the exercise")
+    is_unilateral: bool = Field(default=False, description="Whether exercise is performed one side at a time")
+    is_timed: bool = Field(default=False, description="Whether exercise is time-based rather than rep-based")
+    session_exercise_details: SessionExerciseDetails = Field(..., description="Session-specific details for this exercise")
+
+
+class WorkoutSession(BaseModel):
+    """A single workout session within the plan."""
+    session_name: str = Field(..., description="Name of the session, e.g. 'Workout A', 'Upper Body Day'")
+    week_number: int = Field(..., ge=1, description="Which week this session belongs to")
+    day_number: int = Field(..., ge=1, le=7, description="Day of the week (1=Monday, 7=Sunday)")
+    session_order: int = Field(..., ge=1, description="Order of sessions in the plan")
+    session_type: str = Field(..., description="Type: 'strength', 'cardio', 'hiit', 'mobility', 'recovery', etc.")
+    exercises: list[SessionExercise] = Field(..., description="List of exercises in this session")
+
+
+class StructuredWorkoutPlan(BaseModel):
+    """Complete structured workout plan output from the LLM."""
+    name: str = Field(..., description="Name of the workout plan")
+    description: str = Field(..., description="Description of the plan and its goals")
+    plan_type: str = Field(..., description="Type: 'strength', 'hypertrophy', 'endurance', 'weight_loss', 'general_fitness', etc.")
+    duration_weeks: int = Field(..., ge=1, le=52, description="Duration of the plan in weeks")
+    sessions: list[WorkoutSession] = Field(..., description="List of workout sessions in the plan")
