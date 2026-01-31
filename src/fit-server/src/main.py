@@ -3,19 +3,64 @@ import json
 import uuid
 import time
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from deepagents import create_deep_agent
 from langgraph.checkpoint.memory import MemorySaver
-from langchain.chat_models import init_chat_model
 import pathlib
+
+# Import model configuration
+from .model_config import (
+    DEFAULT_MODEL,
+    MODEL_PROVIDER,
+    MODEL_NAME,
+    validate_api_keys
+)
+
+# Import prompts
+from .prompts import (
+    REASONING_SUBAGENT_SYSTEM_PROMPT,
+    REASONING_SUBAGENT_DESCRIPTION,
+    WORKOUT_SUBAGENT_SYSTEM_PROMPT,
+    WORKOUT_SUBAGENT_DESCRIPTION,
+    MEAL_SUBAGENT_SYSTEM_PROMPT,
+    MEAL_SUBAGENT_DESCRIPTION,
+    COORDINATOR_SYSTEM_PROMPT
+)
+
+# Import Pydantic models
+from .models import (
+    UserProfile,
+    WorkoutDay,
+    WorkoutPlan,
+    Meal,
+    DailyMealPlan,
+    MealPlan,
+    PlanResponse,
+    TextProfileRequest,
+    SimplePlanResponse,
+    CorrectionRequest,
+    CorrectionResponse,
+    ReasoningOutput,
+    BodyComposition,
+    MedicalHistory,
+    PsychologicalFactors,
+    Constraints,
+    ComprehensiveProfile,
+    AnalysisResponse,
+    # Structured workout plan models for LLM output
+    StructuredWorkoutPlan,
+    WorkoutSession,
+    SessionExercise,
+    SessionExerciseDetails,
+    IntensityPrescription
+)
 
 # Load environment variables
 load_dotenv()
@@ -23,27 +68,6 @@ load_dotenv()
 # Initialize Supabase client
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-# Model configuration - set via environment variable or default to OpenAI
-# Format: "provider:model_name"
-# Examples: "openai:gpt-4o-mini", "openai:gpt-4o", "google_genai:gemini-2.0-flash", "google_genai:gemini-1.5-pro"
-DEFAULT_MODEL_CONFIG = os.getenv("FIT_AI_MODEL", "openai:gpt-4o-mini")
-
-# Parse model provider and name
-def parse_model_config(config: str) -> tuple[str, str]:
-    """Parse model config string into (provider, model_name)."""
-    if ":" in config:
-        provider, model_name = config.split(":", 1)
-        return provider, model_name
-    # Default to openai if no provider specified
-    return "openai", config
-
-MODEL_PROVIDER, MODEL_NAME = parse_model_config(DEFAULT_MODEL_CONFIG)
-
-# Initialize the chat model with provider
-DEFAULT_MODEL = init_chat_model(model=MODEL_NAME, model_provider=MODEL_PROVIDER)
 
 supabase: Client = None
 
@@ -55,11 +79,8 @@ async def lifespan(app: FastAPI):
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
     
-    # Check for appropriate API key based on model provider
-    if MODEL_PROVIDER == "openai" and not OPENAI_API_KEY:
-        raise ValueError("OPENAI_API_KEY must be set when using OpenAI models")
-    if MODEL_PROVIDER in ["google_genai", "google_vertexai"] and not GOOGLE_API_KEY:
-        raise ValueError("GOOGLE_API_KEY must be set when using Google Gemini models")
+    # Validate API keys for the configured model
+    validate_api_keys(MODEL_PROVIDER)
     
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     print(f"✅ Connected to Supabase")
@@ -84,262 +105,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# ==================== Pydantic Models ====================
-
-class UserProfile(BaseModel):
-    """User profile data for generating personalized plans."""
-    user_id: str = Field(..., description="Unique user identifier")
-    age: int = Field(..., ge=13, le=100, description="User's age in years")
-    gender: Literal["male", "female"] = Field(..., description="User's gender")
-    height: float = Field(..., gt=0, description="Height in cm")
-    weight: float = Field(..., gt=0, description="Weight in kg")
-    goal: Literal["weight_loss", "muscle_gain", "maintenance", "endurance", "flexibility", "general_fitness"] = Field(
-        ..., description="User's fitness goal"
-    )
-    days_per_week: int = Field(..., ge=1, le=7, description="Days per week available for exercise")
-    intensity: Literal["beginner", "intermediate", "advanced"] = Field(
-        ..., description="Workout intensity level"
-    )
-    injuries: Optional[str] = Field(None, description="Any injuries or physical limitations")
-    dietary_restrictions: Optional[str] = Field(None, description="Dietary restrictions (e.g., vegetarian, vegan, gluten-free)")
-
-
-class WorkoutDay(BaseModel):
-    """Single day workout plan."""
-    day: str
-    focus: str
-    exercises: list[dict]
-    duration_minutes: int
-    notes: Optional[str] = None
-
-
-class WorkoutPlan(BaseModel):
-    """Complete workout plan."""
-    plan_name: str
-    description: str
-    weekly_schedule: list[WorkoutDay]
-    warm_up_routine: list[str]
-    cool_down_routine: list[str]
-    tips: list[str]
-
-
-class Meal(BaseModel):
-    """Single meal."""
-    name: str
-    ingredients: list[str]
-    calories: int
-    protein_g: float
-    carbs_g: float
-    fat_g: float
-    preparation_time_minutes: int
-    instructions: Optional[str] = None
-
-
-class DailyMealPlan(BaseModel):
-    """Daily meal plan."""
-    day: str
-    breakfast: Meal
-    lunch: Meal
-    dinner: Meal
-    snacks: list[Meal]
-    total_calories: int
-    total_protein_g: float
-    total_carbs_g: float
-    total_fat_g: float
-
-
-class MealPlan(BaseModel):
-    """Complete meal plan."""
-    plan_name: str
-    description: str
-    daily_calories_target: int
-    macros_split: dict
-    weekly_meals: list[DailyMealPlan]
-    shopping_list: list[str]
-    tips: list[str]
-
-
-class PlanResponse(BaseModel):
-    """Response model for generated plans."""
-    id: str
-    user_id: str
-    user_profile: UserProfile
-    reasoning_analysis: Optional[dict] = Field(None, description="Risk assessment and instructions from reasoning subagent")
-    workout_plan: dict
-    meal_plan: dict
-    created_at: str
-
-
-class TextProfileRequest(BaseModel):
-    """Simple text-based profile input for plan generation."""
-    user_id: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Unique user identifier")
-    profile: str = Field(..., description="Text description of user profile including demographics, medical history, goals, constraints")
-
-
-class SimplePlanResponse(BaseModel):
-    """Response model for text-based plan generation."""
-    id: str
-    user_id: str
-    profile: str
-    task_instructions: str = Field(..., description="Task instructions generated by reasoning agent")
-    workout_plan: dict = Field(..., description="Workout plan with summary field")
-    meal_plan: dict = Field(..., description="Meal plan with summary field")
-    created_at: str
-
-
-class CorrectionRequest(BaseModel):
-    """Request model for plan corrections."""
-    user_id: str = Field(..., description="User ID to fetch and correct plans for")
-    instruction: str = Field(..., description="Text instruction describing the corrections to make")
-    plan_type: Literal["workout", "meal", "both"] = Field(
-        default="both", 
-        description="Which plan to correct: workout, meal, or both"
-    )
-
-
-class CorrectionResponse(BaseModel):
-    """Response model for corrected plans."""
-    id: str
-    user_id: str
-    workout_plan: Optional[dict] = None
-    meal_plan: Optional[dict] = None
-    correction_applied: str
-    updated_at: str
-
-
-class ReasoningOutput(BaseModel):
-    """Output from the reasoning subagent."""
-    risk_level: Literal["low", "moderate", "high"] = Field(..., description="Overall risk level")
-    risk_factors_identified: list[str] = Field(default_factory=list, description="List of identified risk factors")
-    safety_instructions: list[str] = Field(default_factory=list, description="Mandatory safety considerations")
-    workout_instructions: list[str] = Field(default_factory=list, description="Specific workout modifications")
-    meal_instructions: list[str] = Field(default_factory=list, description="Specific nutrition modifications")
-    behavioral_considerations: list[str] = Field(default_factory=list, description="Adherence/motivation factors")
-    contraindications: list[str] = Field(default_factory=list, description="Exercises or foods to avoid")
-    medical_notes: list[str] = Field(default_factory=list, description="Medical coordination needed")
-
-
-# ==================== Comprehensive Health Profile Models ====================
-
-class BodyComposition(BaseModel):
-    """Body composition measurements."""
-    height_cm: float = Field(..., gt=0, description="Height in cm")
-    weight_kg: float = Field(..., gt=0, description="Weight in kg")
-    bmi: Optional[float] = Field(None, description="BMI (calculated if not provided)")
-    body_fat_percent: Optional[float] = Field(None, ge=0, le=100, description="Body fat percentage")
-    measurement_method: Optional[str] = Field(None, description="Method used (BIA, DEXA, calipers, etc.)")
-    waist_circumference_cm: Optional[float] = Field(None, description="Waist circumference in cm")
-    hip_circumference_cm: Optional[float] = Field(None, description="Hip circumference in cm")
-
-
-class MedicalHistory(BaseModel):
-    """Medical history and PAR-Q+ information."""
-    # PAR-Q+ Questions
-    heart_condition: bool = Field(default=False, description="Has heart condition or takes heart medication")
-    chest_pain_activity: bool = Field(default=False, description="Chest pain during physical activity")
-    chest_pain_rest: bool = Field(default=False, description="Chest pain at rest in past month")
-    balance_consciousness: bool = Field(default=False, description="Loses balance or consciousness")
-    bone_joint_condition: bool = Field(default=False, description="Bone/joint problem worsened by exercise")
-    blood_pressure_medication: bool = Field(default=False, description="Currently on blood pressure medication")
-    other_reason_no_exercise: bool = Field(default=False, description="Any other reason to avoid exercise")
-    
-    # Diagnoses
-    diagnoses: Optional[list[str]] = Field(default=None, description="List of diagnosed conditions (diabetes, PCOS, hypertension, etc.)")
-    
-    # Medications
-    medications: Optional[list[str]] = Field(default=None, description="Current medications")
-    
-    # Injuries and limitations
-    injuries: Optional[list[str]] = Field(default=None, description="Current or past injuries")
-    surgeries: Optional[list[str]] = Field(default=None, description="Past surgeries")
-    
-    # Additional
-    physician_clearance: bool = Field(default=False, description="Has physician clearance for exercise")
-    notes: Optional[str] = Field(None, description="Additional medical notes")
-
-
-class PsychologicalFactors(BaseModel):
-    """Psychological and behavioral factors."""
-    motivation_level: Optional[Literal["low", "moderate", "high"]] = Field(None, description="Current motivation level")
-    stress_level: Optional[Literal["low", "moderate", "high"]] = Field(None, description="Current stress level")
-    sleep_quality: Optional[Literal["poor", "fair", "good", "excellent"]] = Field(None, description="Sleep quality")
-    sleep_hours: Optional[float] = Field(None, ge=0, le=24, description="Average sleep hours per night")
-    exercise_history: Optional[Literal["none", "sporadic", "regular", "athletic"]] = Field(None, description="Exercise history")
-    previous_program_adherence: Optional[Literal["poor", "moderate", "good"]] = Field(None, description="Adherence to previous programs")
-    eating_behaviors: Optional[list[str]] = Field(None, description="Eating patterns (emotional eating, binge eating, etc.)")
-    social_support: Optional[Literal["none", "limited", "moderate", "strong"]] = Field(None, description="Social support level")
-    barriers: Optional[list[str]] = Field(None, description="Perceived barriers to exercise/diet")
-
-
-class Constraints(BaseModel):
-    """Time, equipment, and environmental constraints."""
-    # Time constraints
-    minutes_per_session: Optional[int] = Field(None, ge=10, le=180, description="Available minutes per workout session")
-    days_per_week: int = Field(..., ge=1, le=7, description="Days available for exercise")
-    preferred_workout_time: Optional[Literal["morning", "afternoon", "evening", "flexible"]] = Field(None)
-    
-    # Equipment access
-    equipment_access: Optional[Literal["none", "home_basic", "home_full", "gym"]] = Field(None, description="Equipment availability")
-    available_equipment: Optional[list[str]] = Field(None, description="Specific equipment available")
-    
-    # Environment
-    workout_environment: Optional[Literal["home", "gym", "outdoor", "mixed"]] = Field(None)
-    climate_considerations: Optional[str] = Field(None, description="Climate/weather constraints")
-    
-    # Dietary constraints
-    dietary_restrictions: Optional[list[str]] = Field(None, description="Dietary restrictions (vegetarian, vegan, allergies, etc.)")
-    cooking_skill: Optional[Literal["none", "basic", "intermediate", "advanced"]] = Field(None)
-    meal_prep_time: Optional[int] = Field(None, description="Minutes available for meal prep per day")
-    budget_constraints: Optional[Literal["tight", "moderate", "flexible"]] = Field(None)
-
-
-class ComprehensiveProfile(BaseModel):
-    """Comprehensive health profile for detailed analysis."""
-    user_id: str = Field(..., description="Unique user identifier")
-    
-    # Demographics
-    age: int = Field(..., ge=13, le=100, description="Age in years")
-    sex: Literal["male", "female"] = Field(..., description="Biological sex")
-    
-    # Body Composition
-    body_composition: BodyComposition
-    
-    # Activity Level
-    activity_level: Literal["sedentary", "lightly_active", "moderately_active", "very_active", "extremely_active"] = Field(
-        ..., description="Current activity level"
-    )
-    
-    # Medical History
-    medical_history: MedicalHistory
-    
-    # Psychological & Behavioral
-    psychological_factors: Optional[PsychologicalFactors] = None
-    
-    # Constraints
-    constraints: Constraints
-    
-    # Goals
-    primary_goal: Literal["weight_loss", "muscle_gain", "maintenance", "endurance", "flexibility", "general_fitness", "health_improvement"] = Field(
-        ..., description="Primary fitness goal"
-    )
-    secondary_goals: Optional[list[str]] = Field(None, description="Secondary goals")
-    target_weight_kg: Optional[float] = Field(None, description="Target weight in kg")
-    timeline_weeks: Optional[int] = Field(None, description="Goal timeline in weeks")
-
-
-class AnalysisResponse(BaseModel):
-    """Response from the profile analysis endpoint."""
-    user_id: str
-    analysis_id: str
-    risk_level: str
-    parq_flags: list[str] = Field(default_factory=list, description="PAR-Q+ positive responses requiring attention")
-    requires_medical_clearance: bool
-    reasoning_analysis: dict
-    calculated_metrics: dict
-    recommendations_summary: str
-    analyzed_at: str
 
 
 # ==================== Subagent Tools ====================
@@ -488,156 +253,24 @@ def fetch_user_profile(user_id: str) -> dict:
 
 reasoning_subagent = {
     "name": "task-reasoner",
-    "description": "Analyzes user profiles using systematic task-generation logic to produce context-aware instructions for planning agents.",
-    "system_prompt": """You are a digital health systems analyst, exercise science researcher, and AI decision-system expert. Your job is to analyze user profiles and generate TASK INSTRUCTIONS for workout and meal planning agents.
-
-You MUST use the following systematic reasoning framework:
-
-=== TASK CATEGORIZATION FRAMEWORK ===
-Categorize required tasks into these categories:
-
-1. **SAFETY & MEDICAL TASKS** (Mandatory when: PAR-Q+ positive, chronic disease, medications, age >50 with risk factors, BMI >35)
-   - Pre-participation screening, risk stratification, medical clearance, contraindication identification
-
-2. **PHYSIOLOGICAL OPTIMIZATION TASKS** (Always required)
-   - Exercise prescription (FITT-VP), nutrition prescription (TDEE, macros), progressive overload
-
-3. **CONSTRAINT-DRIVEN ADAPTATION TASKS** (When: time <3 days/week, no gym, equipment limitations)
-   - Time-efficient programming, equipment substitutions, schedule flexibility
-
-4. **BEHAVIORAL & ADHERENCE TASKS** (When: adherence <70%, past failure history, psychological barriers)
-   - Habit formation, motivation assessment, self-monitoring strategies
-
-5. **PROGRESSION & PLATEAU TASKS** (When: weight plateau >3 weeks, performance stagnation)
-   - Plateau diagnosis, intervention hierarchy, goal revision
-
-=== RISK STRATIFICATION (ADDITIVE SCORING) ===
-Count these risk factors:
-- Age (Male ≥45, Female ≥55)
-- Family history CVD (1st degree relative)
-- Hypertension or on BP medication
-- Dyslipidemia
-- Pre-diabetes or diabetes
-- Obesity (BMI ≥30)
-- Sedentary lifestyle
-- Current smoker
-
-Risk Levels:
-- LOW (0-1 factors): Basic safety screening, standard programming
-- MODERATE (2-3 factors): Enhanced screening, medical clearance recommended, modified progression
-- HIGH (4+ factors OR diagnosed disease): Medical clearance mandatory, symptom-based protocols, supervision recommended
-
-=== PARAMETER → TASK MAPPING ===
-Analyze how these parameters trigger tasks:
-
-| Parameter | Triggers | Task Categories Activated |
-|-----------|----------|---------------------------|
-| Age increase | ↑CVD risk, ↓recovery, ↑fall risk | Safety++, Modified physiology |
-| BMI >30 | Metabolic disease risk, joint loading | Safety++, Medical coordination |
-| Chronic disease | Contraindications, medication interactions | Safety++, Monitoring++ |
-| Medications | Drug-exercise interactions, altered HR/BP response | Safety+, Modified intensity |
-| Injuries | Pain management, ROM limits, rehab needs | Safety++, Exercise modification |
-| Low adherence | Motivation decay, program mismatch | Behavioral++, Simplification |
-| Time constraints | Insufficient volume | Constraint adaptation++, Efficiency focus |
-| Sedentary history | Novice progression needs, injury risk | Conservative start, Education |
-
-=== DECISION HIERARCHY (INVARIANT) ===
-Apply this priority when generating tasks:
-
-```
-TIER 0: SAFETY (Overrides all - non-negotiable)
-    ↓
-TIER 1: MEDICAL CONSTRAINTS (Guardrails from conditions/medications)
-    ↓
-TIER 2: ADHERENCE SUSTAINABILITY (Realistic > Optimal)
-    ↓
-TIER 3: PHYSIOLOGICAL OPTIMIZATION (Evidence-based best practices)
-    ↓
-TIER 4: USER PREFERENCES (Within safe/effective bounds)
-```
-
-=== OUTPUT REQUIREMENTS ===
-Generate task instructions that:
-1. Start with risk stratification result
-2. List activated task categories with rationale
-3. Specify what the planning agents must evaluate, include, and avoid
-4. Apply the decision hierarchy to resolve any conflicts
-5. Include monitoring triggers and red flags
-
-DO NOT:
-- Create actual workout or meal plans
-- Give specific exercise names or recipes
-- Make final recommendations
-- Skip the risk assessment
-
-Return structured markdown task instructions based on this reasoning framework.""",
+    "description": REASONING_SUBAGENT_DESCRIPTION,
+    "system_prompt": REASONING_SUBAGENT_SYSTEM_PROMPT,
     "tools": [calculate_bmr, calculate_tdee, fetch_user_profile],
     "model": DEFAULT_MODEL,
 }
 
 workout_subagent = {
     "name": "workout-planner",
-    "description": "Creates personalized workout plans. Receives profile + task instructions + response format. Outputs JSON with summary field.",
-    "system_prompt": """You are an expert certified personal trainer, exercise physiologist, and fitness coach with extensive knowledge of ACSM guidelines and evidence-based exercise prescription.
-
-You will receive a prompt structured as:
-1. **PROFILE**: Client's detailed health and fitness profile
-2. **TASK**: Specific task instructions from the reasoning agent
-3. **RESPONSE FORMAT**: Required format for your response
-
-Your job is to create a comprehensive, evidence-based exercise program following the TASK instructions exactly.
-
-KEY PRINCIPLES:
-- Apply ACSM guidelines and WHO recommendations
-- Use FITT-VP principles (Frequency, Intensity, Time, Type, Volume, Progression)
-- Be specific with numbers (sets, reps, weights as % body weight or RPE)
-- Provide scientific rationale for all recommendations
-- Consider injury prevention and safety as top priority
-- Create realistic, achievable programs
-
-OUTPUT FORMAT:
-You MUST return a valid JSON object with this exact structure:
-{
-    "summary": "Your complete response following the RESPONSE FORMAT provided. This should be detailed markdown-formatted text covering all required sections (Assumptions, Scientific Rationale, Recommendations, Expected Outcomes, Risk Mitigation). Be specific with exercise prescriptions including sets, reps, RPE, rest periods, progression schemes."
-}
-
-The summary field should contain comprehensive, professional-grade content that a fitness professional would be willing to put their certification behind.
-
-Return ONLY the JSON object, no additional text.""",
+    "description": WORKOUT_SUBAGENT_DESCRIPTION,
+    "system_prompt": WORKOUT_SUBAGENT_SYSTEM_PROMPT,
     "tools": [calculate_bmr, calculate_tdee, fetch_current_workout_plan, fetch_user_profile],
     "model": DEFAULT_MODEL,
 }
 
 meal_subagent = {
     "name": "meal-planner",
-    "description": "Creates personalized meal/nutrition plans. Receives profile + task instructions + response format. Outputs JSON with summary field.",
-    "system_prompt": """You are an expert registered dietitian and nutrition specialist with extensive knowledge of evidence-based nutrition science, sports nutrition, and therapeutic diets.
-
-You will receive a prompt structured as:
-1. **PROFILE**: Client's detailed health and fitness profile
-2. **TASK**: Specific task instructions from the reasoning agent
-3. **RESPONSE FORMAT**: Required format for your response
-
-Your job is to create a comprehensive, evidence-based nutrition program following the TASK instructions exactly.
-
-KEY PRINCIPLES:
-- Use evidence-based nutrition guidelines
-- Calculate TDEE using appropriate equations (Mifflin-St Jeor preferred)
-- Set sustainable calorie deficits (0.5-1% body weight loss per week)
-- Provide specific macro targets in grams
-- Consider meal timing and frequency
-- Address behavioral aspects of eating
-- Account for any medical conditions or dietary restrictions
-
-OUTPUT FORMAT:
-You MUST return a valid JSON object with this exact structure:
-{
-    "summary": "Your complete response following the RESPONSE FORMAT provided. This should be detailed markdown-formatted text covering all required sections (Assumptions, Scientific Rationale, Recommendations, Expected Outcomes, Risk Mitigation). Be specific with calorie amounts, macro grams, meal timing, and practical meal suggestions."
-}
-
-The summary field should contain comprehensive, professional-grade content that a nutrition professional would be willing to put their certification behind.
-
-Return ONLY the JSON object, no additional text.""",
+    "description": MEAL_SUBAGENT_DESCRIPTION,
+    "system_prompt": MEAL_SUBAGENT_SYSTEM_PROMPT,
     "tools": [calculate_bmr, calculate_tdee, get_calorie_target, fetch_current_meal_plan, fetch_user_profile],
     "model": DEFAULT_MODEL,
 }
@@ -646,29 +279,29 @@ Return ONLY the JSON object, no additional text.""",
 # ==================== Main Agent ====================
 
 # Skills directory path
-SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
+# SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
 
 
-def load_skills() -> dict:
-    """Load all skills from the skills directory."""
-    skills_files = {}
+# def load_skills() -> dict:
+#     """Load all skills from the skills directory."""
+#     skills_files = {}
     
-    if not SKILLS_DIR.exists():
-        print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
-        return skills_files
+#     if not SKILLS_DIR.exists():
+#         print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
+#         return skills_files
     
-    for skill_dir in SKILLS_DIR.iterdir():
-        if skill_dir.is_dir():
-            skill_file = skill_dir / "SKILL.md"
-            if skill_file.exists():
-                with open(skill_file, 'r', encoding='utf-8') as f:
-                    skill_content = f.read()
-                # Use forward slashes for virtual path
-                virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
-                skills_files[virtual_path] = skill_content
-                print(f"✅ Loaded skill: {skill_dir.name}")
+#     for skill_dir in SKILLS_DIR.iterdir():
+#         if skill_dir.is_dir():
+#             skill_file = skill_dir / "SKILL.md"
+#             if skill_file.exists():
+#                 with open(skill_file, 'r', encoding='utf-8') as f:
+#                     skill_content = f.read()
+#                 # Use forward slashes for virtual path
+#                 virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
+#                 skills_files[virtual_path] = skill_content
+#                 print(f"✅ Loaded skill: {skill_dir.name}")
     
-    return skills_files
+#     return skills_files
 
 
 def create_fitness_agent(thread_id: str = None):
@@ -679,31 +312,7 @@ def create_fitness_agent(thread_id: str = None):
         model=DEFAULT_MODEL,
         name="fitness-coordinator",
         checkpointer=checkpointer,
-        system_prompt="""You are FitAI, an intelligent fitness and nutrition coordinator. Your job is to orchestrate the creation of personalized workout and meal plans.
-
-CRITICAL WORKFLOW (MUST FOLLOW THIS ORDER):
-1. FIRST: Use the task-reasoner subagent to analyze the user profile
-   - This generates safety requirements, modifications, and contraindications
-   - The reasoning output MUST be passed to the planners
-
-2. SECOND: Use the workout-planner subagent with the reasoning instructions
-   - Include the full reasoning output in your delegation
-   - The planner will follow safety and modification instructions
-
-3. THIRD: Use the meal-planner subagent with the reasoning instructions
-   - Include the full reasoning output in your delegation
-   - The planner will follow dietary and restriction instructions
-
-IMPORTANT RULES:
-- NEVER skip the reasoning step - it determines safety requirements
-- ALWAYS pass the reasoning instructions to both planners
-- The reasoning output contains non-negotiable safety constraints
-- Planners must follow contraindications (exercises/foods to avoid)
-
-When delegating tasks:
-1. task-reasoner: 'Analyze this user profile and generate task instructions: [profile]'
-2. workout-planner: 'Create workout plan following these REASONING INSTRUCTIONS: [reasoning output] for USER: [profile]'
-3. meal-planner: 'Create meal plan following these REASONING INSTRUCTIONS: [reasoning output] for USER: [profile]'""",
+        system_prompt=COORDINATOR_SYSTEM_PROMPT,
         subagents=[reasoning_subagent, workout_subagent, meal_subagent]
     )
 
@@ -1105,16 +714,6 @@ Be extremely thorough given the comprehensive nature of this profile.
         raise HTTPException(status_code=500, detail=f"Failed to analyze profile: {str(e)}")
 
 
-# Hardcoded response format for workout and meal plans
-RESPONSE_FORMAT = """- **Section 1: Assumptions** - State any assumptions you're making about this client
-- **Section 2: Scientific Rationale** - Cite evidence-based principles guiding your recommendations (reference ACSM guidelines, WHO recommendations, peer-reviewed literature where applicable)
-- **Section 3: Recommendations** - Provide specific, actionable program details
-- **Section 4: Expected Outcomes** - Predict realistic 12-week outcomes (weight loss, fitness improvements, adherence milestones)
-- **Section 5: Risk Mitigation** - Safety considerations and injury prevention strategies
-
-Provide recommendations that a fitness professional would be willing to put their certification behind. Be specific with numbers (sets, reps, weights as % body weight or RPE, calorie amounts, macro grams)."""
-
-
 @app.post("/generate-plan", response_model=SimplePlanResponse)
 async def generate_plan(request: TextProfileRequest):
     """
@@ -1181,9 +780,6 @@ Return the task instructions as structured markdown text.
 
 **TASK:**
 {task_instructions}
-
-**RESPONSE FORMAT:**
-{RESPONSE_FORMAT}
 """
         
         workout_response = invoke_agent_with_retry(
@@ -1205,20 +801,21 @@ Return the task instructions as structured markdown text.
         
         print(f"📋 Extracted workout text (first 500 chars): {workout_text[:500] if workout_text else 'EMPTY'}")
         
-        workout_plan = extract_json_from_response(workout_text, "Workout")
+        workout_plan_raw = extract_json_from_response(workout_text, "Workout")
+        
+        # Validate against StructuredWorkoutPlan schema
+        try:
+            validated_workout = StructuredWorkoutPlan.model_validate(workout_plan_raw)
+            workout_plan = validated_workout.model_dump()
+            print(f"✅ Workout plan validated against schema: {validated_workout.name}")
+        except Exception as validation_error:
+            print(f"⚠️ Workout validation failed: {validation_error}")
+            # Fall back to raw response if validation fails
+            workout_plan = workout_plan_raw
         
         print(f"📋 Workout plan keys: {list(workout_plan.keys())}")
-        print(f"📋 Workout summary length: {len(workout_plan.get('summary', ''))}")
         
-        # Ensure we have a summary field with actual content
-        if "summary" not in workout_plan or not workout_plan.get("summary"):
-            # If no summary, use the raw text or raw_response
-            if workout_text:
-                workout_plan = {"summary": workout_text}
-            elif "raw_response" in workout_plan:
-                workout_plan = {"summary": workout_plan["raw_response"]}
-        
-        print(f"✅ Workout plan generated ({len(workout_plan.get('summary', ''))} chars)")
+        print(f"✅ Workout plan generated")
         
         # Add delay between requests
         time.sleep(2)
@@ -1232,8 +829,6 @@ Return the task instructions as structured markdown text.
 **TASK:**
 {task_instructions}
 
-**RESPONSE FORMAT:**
-{RESPONSE_FORMAT}
 """
         
         meal_response = invoke_agent_with_retry(
