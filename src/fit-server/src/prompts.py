@@ -105,14 +105,67 @@ KEY PRINCIPLES:
 - Consider injury prevention and safety as top priority
 - Create realistic, achievable programs
 
-OUTPUT FORMAT:
-- **Section 1: Assumptions** - State any assumptions you're making about this client
-- **Section 2: Scientific Rationale** - Cite evidence-based principles guiding your recommendations (reference ACSM guidelines, WHO recommendations, peer-reviewed literature where applicable)
-- **Section 3: Recommendations** - Provide specific, actionable program details
-- **Section 4: Expected Outcomes** - Predict realistic 12-week outcomes (weight loss, fitness improvements, adherence milestones)
-- **Section 5: Risk Mitigation** - Safety considerations and injury prevention strategies
+=== REQUIRED OUTPUT FORMAT ===
+You MUST return a valid JSON object matching this exact schema:
 
-Provide recommendations that a fitness professional would be willing to put their certification behind. Be specific with numbers (sets, reps, weights as % body weight or RPE, calorie amounts, macro grams).
+```json
+{
+  "name": "string - Plan name (e.g., '5x5 Strength Foundation')",
+  "description": "string - Description of the plan and its goals",
+  "plan_type": "string - Type: 'strength', 'hypertrophy', 'endurance', 'weight_loss', 'general_fitness'",
+  "duration_weeks": "integer - Duration in weeks (1-52)",
+  "sessions": [
+    {
+      "session_name": "string - e.g., 'Workout A', 'Upper Body Day'",
+      "week_number": "integer - which week (1+)",
+      "day_number": "integer - day of week (1-7, 1=Monday)",
+      "session_order": "integer - order in plan",
+      "session_type": "string - 'strength', 'cardio', 'hiit', 'mobility', 'recovery'",
+      "exercises": [
+        {
+          "name": "string - exercise name",
+          "category": "string - 'strength', 'cardio', 'mobility', 'plyometric'",
+          "equipment": ["array of equipment strings"],
+          "muscle_groups": ["array of target muscles"],
+          "movement_pattern": "string - 'squat', 'hinge', 'push', 'pull', 'carry'",
+          "description": "string - how to perform the exercise (optional)",
+          "is_unilateral": false,
+          "is_timed": false,
+          "session_exercise_details": {
+            "exercise_order": "integer - order in session (1+)",
+            "sets": "integer - number of sets",
+            "reps": "integer - reps per set (if rep-based)",
+            "rest_seconds": "integer - rest between sets",
+            "rest_seconds_min": "integer - minimum rest (optional)",
+            "rest_seconds_max": "integer - maximum rest (optional)",
+            "load_type": "string - 'rpe_based', 'percent_1rm', 'bodyweight'",
+            "tempo": "string - tempo notation like '2-0-1-0' (optional)",
+            "notes": "string - exercise-specific notes (optional)",
+            "intensity_prescriptions": [
+              {
+                "intensity_type_code": "string - 'rpe', 'percent_1rm', 'hr_zone'",
+                "intensity_name": "string - human-readable name (optional)",
+                "target_value": "number - target intensity value",
+                "target_value_min": "number - minimum (optional)",
+                "target_value_max": "number - maximum (optional)",
+                "applies_to_sets": [1, 2, 3, 4, 5],
+                "notes": "string - e.g., 'Leave 2-3 reps in the tank' (optional)"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+IMPORTANT RULES:
+1. Return ONLY the JSON object, no markdown formatting, no explanations
+2. All required fields must be present
+3. Use realistic exercise selections based on the client's equipment access
+4. Intensity prescriptions should match the client's experience level
+5. Session exercises should be ordered logically (compound before isolation)
 
 DO NOT use the write_todos tool"""
 
@@ -157,10 +210,6 @@ CRITICAL WORKFLOW (MUST FOLLOW THIS ORDER):
    - Include the full reasoning output in your delegation
    - The planner will follow safety and modification instructions
 
-3. THIRD: Use the meal-planner subagent with the reasoning instructions
-   - Include the full reasoning output in your delegation
-   - The planner will follow dietary and restriction instructions
-
 IMPORTANT RULES:
 - NEVER skip the reasoning step - it determines safety requirements
 - ALWAYS pass the reasoning instructions to both planners
@@ -177,3 +226,13 @@ DO NOT use the write_todos tool"""
 
 
 
+<<<<<<< HEAD
+=======
+# ==================== Subagent Descriptions ====================
+
+REASONING_SUBAGENT_DESCRIPTION = "Analyzes user profiles using systematic task-generation logic to produce context-aware instructions for planning agents."
+
+WORKOUT_SUBAGENT_DESCRIPTION = "Creates personalized workout plans in structured JSON format. Receives profile + task instructions. Outputs a complete StructuredWorkoutPlan JSON object with sessions, exercises, and intensity prescriptions."
+
+MEAL_SUBAGENT_DESCRIPTION = "Creates personalized meal/nutrition plans. Receives profile + task instructions + response format. Outputs JSON with summary field."
+>>>>>>> 1c1764bb1bcbe2869abf439040544dac8249ec7f

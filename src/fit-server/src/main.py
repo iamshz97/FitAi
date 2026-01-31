@@ -12,6 +12,13 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from supabase import create_client, Client
+<<<<<<< HEAD
+=======
+from deepagents import create_deep_agent
+from langchain.agents import create_agent
+from langgraph.checkpoint.memory import MemorySaver
+import pathlib
+>>>>>>> 1c1764bb1bcbe2869abf439040544dac8249ec7f
 
 # Import model configuration
 from model_config import (
@@ -47,7 +54,13 @@ from models import (
     PsychologicalFactors,
     Constraints,
     ComprehensiveProfile,
-    AnalysisResponse
+    AnalysisResponse,
+    # Structured workout plan models for LLM output
+    StructuredWorkoutPlan,
+    WorkoutSession,
+    SessionExercise,
+    SessionExerciseDetails,
+    IntensityPrescription
 )
 
 # Load environment variables
@@ -239,6 +252,7 @@ def fetch_user_profile(user_id: str) -> dict:
 
 # ==================== OpenAI Tool Schemas ====================
 
+<<<<<<< HEAD
 FIT_TOOLS = [
     {
         "type": "function",
@@ -339,37 +353,86 @@ TOOL_MAP = {
     "fetch_current_workout_plan": fetch_current_workout_plan,
     "fetch_current_meal_plan": fetch_current_meal_plan,
     "fetch_user_profile": fetch_user_profile,
+=======
+reasoning_subagent = {
+    "name": "task-reasoner",
+    "description": REASONING_SUBAGENT_DESCRIPTION,
+    "system_prompt": REASONING_SUBAGENT_SYSTEM_PROMPT,
+    # "tools": [calculate_bmr, calculate_tdee, fetch_user_profile],
+    "model": "openai:gpt-4o-mini",
+}
+
+workout_subagent = {
+    "name": "workout-planner",
+    "description": WORKOUT_SUBAGENT_DESCRIPTION,
+    "system_prompt": WORKOUT_SUBAGENT_SYSTEM_PROMPT,
+    # "tools": [calculate_bmr, calculate_tdee, fetch_current_workout_plan, fetch_user_profile],
+    "model": "openai:gpt-4o-mini",
+}
+
+meal_subagent = {
+    "name": "meal-planner",
+    "description": MEAL_SUBAGENT_DESCRIPTION,
+    "system_prompt": MEAL_SUBAGENT_SYSTEM_PROMPT,
+    "tools": [calculate_bmr, calculate_tdee, get_calorie_target, fetch_current_meal_plan, fetch_user_profile],
+    "model": DEFAULT_MODEL,
+>>>>>>> 1c1764bb1bcbe2869abf439040544dac8249ec7f
 }
 
 
 # ==================== Main Agent ====================
 
 # Skills directory path
-SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
+# SKILLS_DIR = pathlib.Path(__file__).parent.parent / "skills"
 
 
-def load_skills() -> dict:
-    """Load all skills from the skills directory."""
-    skills_files = {}
+# def load_skills() -> dict:
+#     """Load all skills from the skills directory."""
+#     skills_files = {}
     
-    if not SKILLS_DIR.exists():
-        print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
-        return skills_files
+#     if not SKILLS_DIR.exists():
+#         print(f"⚠️ Skills directory not found: {SKILLS_DIR}")
+#         return skills_files
     
-    for skill_dir in SKILLS_DIR.iterdir():
-        if skill_dir.is_dir():
-            skill_file = skill_dir / "SKILL.md"
-            if skill_file.exists():
-                with open(skill_file, 'r', encoding='utf-8') as f:
-                    skill_content = f.read()
-                # Use forward slashes for virtual path
-                virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
-                skills_files[virtual_path] = skill_content
-                print(f"✅ Loaded skill: {skill_dir.name}")
+#     for skill_dir in SKILLS_DIR.iterdir():
+#         if skill_dir.is_dir():
+#             skill_file = skill_dir / "SKILL.md"
+#             if skill_file.exists():
+#                 with open(skill_file, 'r', encoding='utf-8') as f:
+#                     skill_content = f.read()
+#                 # Use forward slashes for virtual path
+#                 virtual_path = f"/skills/{skill_dir.name}/SKILL.md"
+#                 skills_files[virtual_path] = skill_content
+#                 print(f"✅ Loaded skill: {skill_dir.name}")
     
-    return skills_files
+#     return skills_files
 
 
+<<<<<<< HEAD
+=======
+def create_fitness_agent(thread_id: str = None):
+    """Create the main fitness planning agent with subagents."""
+    
+    return create_deep_agent(
+        model=DEFAULT_MODEL,
+        name="fitness-coordinator",
+        system_prompt=COORDINATOR_SYSTEM_PROMPT,
+        subagents=[reasoning_subagent, workout_subagent]
+    )
+
+
+def create_workout_agent():
+    """Create a dedicated workout planning agent with structured output."""
+    return create_deep_agent(
+        model=DEFAULT_MODEL,
+        system_prompt=WORKOUT_SUBAGENT_SYSTEM_PROMPT,
+        response_format=StructuredWorkoutPlan
+    )
+
+
+# ==================== Helper Functions ====================
+
+>>>>>>> 1c1764bb1bcbe2869abf439040544dac8249ec7f
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=2, min=4, max=30),
@@ -829,8 +892,16 @@ Return the task instructions as structured markdown text.
         
         print(f"✅ Task instructions generated ({len(task_instructions)} chars)")
         
+<<<<<<< HEAD
         # STEP 2: Generate Workout Plan
         print(f"💪 Step 2: Running workout-planner...")
+=======
+        # Add delay between requests
+        time.sleep(2)
+        
+        # STEP 2: Generate Workout Plan using structured output agent
+        print(f"💪 Step 2: Running workout-planner with structured output...")
+>>>>>>> 1c1764bb1bcbe2869abf439040544dac8249ec7f
         
         workout_prompt = f"""
 {request.profile}
@@ -839,6 +910,7 @@ Return the task instructions as structured markdown text.
 {task_instructions}
 """
         
+<<<<<<< HEAD
         workout_text = call_openai_with_tools(
             messages=[{"role": "user", "content": workout_prompt}],
             system_prompt=WORKOUT_SUBAGENT_SYSTEM_PROMPT,
@@ -856,6 +928,38 @@ Return the task instructions as structured markdown text.
                 workout_plan = {"summary": workout_plan["raw_response"]}
         
         print(f"✅ Workout plan generated")
+=======
+        # Create workout agent with structured output
+        workout_agent = create_workout_agent()
+        
+        workout_response = invoke_agent_with_retry(
+            workout_agent, 
+            {
+                "messages": [{"role": "user", "content": workout_prompt}]
+            }
+        )
+        
+        # Get structured response directly from agent
+        workout_plan_structured: StructuredWorkoutPlan = workout_response.get("structured_response")
+        
+        if workout_plan_structured:
+            workout_plan = workout_plan_structured.model_dump()
+            print(f"✅ Workout plan generated with structured output: {workout_plan_structured.name}")
+        else:
+            # Fallback to extracting from message if structured_response not available
+            print(f"⚠️ No structured_response, falling back to message extraction")
+            workout_content = workout_response["messages"][-1].content if workout_response.get("messages") else ""
+            workout_text = extract_message_content(workout_content)
+            workout_plan_raw = extract_json_from_response(workout_text, "Workout")
+            try:
+                validated_workout = StructuredWorkoutPlan.model_validate(workout_plan_raw)
+                workout_plan = validated_workout.model_dump()
+            except Exception as validation_error:
+                print(f"⚠️ Workout validation failed: {validation_error}")
+                workout_plan = workout_plan_raw
+        
+        print(f"📋 Workout plan keys: {list(workout_plan.keys())}")
+>>>>>>> 1c1764bb1bcbe2869abf439040544dac8249ec7f
         
         # Add delay between requests
         time.sleep(2)
