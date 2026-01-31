@@ -16,6 +16,10 @@ struct SettingsTabView: View {
     
     @EnvironmentObject private var authViewModel: AuthViewModel
     
+    // MARK: - State
+    
+    @State private var showHealthKitSettings: Bool = false
+    
     // MARK: - Body
     
     var body: some View {
@@ -108,6 +112,16 @@ struct SettingsTabView: View {
     
     private var appSettingsSection: some View {
         SettingsSection(title: "Settings") {
+            // Apple Health
+            Button(action: {
+                showHealthKitSettings = true
+            }) {
+                SettingsRowContent(icon: "heart.fill", title: "Apple Health", color: .red)
+            }
+            .sheet(isPresented: $showHealthKitSettings) {
+                HealthKitSettingsView()
+            }
+            
             SettingsRow(icon: "bell.fill", title: "Notifications", color: AppTheme.Colors.error)
             SettingsRow(icon: "moon.fill", title: "Appearance", color: AppTheme.Colors.accentSecondary)
             SettingsRow(icon: "lock.fill", title: "Privacy", color: AppTheme.Colors.textSecondary)
@@ -194,25 +208,38 @@ struct SettingsRow: View {
     
     var body: some View {
         Button(action: {}) {
-            HStack(spacing: AppTheme.Spacing.lg) {
-                Image(systemName: icon)
-                    .font(.system(size: 18))
-                    .foregroundStyle(color)
-                    .frame(width: 28)
-                
-                Text(title)
-                    .font(AppTheme.Typography.body())
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.textTertiary)
-            }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.lg)
+            SettingsRowContent(icon: icon, title: title, color: color)
         }
+    }
+}
+
+// MARK: - Settings Row Content
+
+/// Reusable row content for settings items (can be used with custom buttons)
+struct SettingsRowContent: View {
+    let icon: String
+    let title: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: AppTheme.Spacing.lg) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundStyle(color)
+                .frame(width: 28)
+            
+            Text(title)
+                .font(AppTheme.Typography.body())
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+            
+            Spacer()
+            
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.textTertiary)
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.lg)
     }
 }
 

@@ -16,27 +16,35 @@ private let logger = Logger(subsystem: "com.fitai.app", category: "OnboardingVie
 // MARK: - Onboarding Step
 
 enum OnboardingStep: Int, CaseIterable {
-    case personalInfo = 0
-    case preferences = 1
-    case healthBackground = 2
-    case goalsLifestyle = 3
+    case healthConnect = 0
+    case personalInfo = 1
+    case preferences = 2
+    case healthBackground = 3
+    case goalsLifestyle = 4
     
     var title: String {
         switch self {
+        case .healthConnect: return "Health"
         case .personalInfo: return "About You"
         case .preferences: return "Preferences"
-        case .healthBackground: return "Health"
+        case .healthBackground: return "Background"
         case .goalsLifestyle: return "Goals"
         }
     }
     
     var subtitle: String {
         switch self {
+        case .healthConnect: return "Connect Apple Health"
         case .personalInfo: return "Tell us about yourself"
         case .preferences: return "Your fitness journey"
         case .healthBackground: return "Health background"
         case .goalsLifestyle: return "Your goals & lifestyle"
         }
+    }
+    
+    /// Steps to display in the progress indicator (excludes healthConnect)
+    static var displaySteps: [OnboardingStep] {
+        [.personalInfo, .preferences, .healthBackground, .goalsLifestyle]
     }
     
     static var totalSteps: Int { allCases.count }
@@ -49,10 +57,15 @@ final class OnboardingViewModel: ObservableObject {
     
     // MARK: - Published Properties
     
-    @Published var currentStep: OnboardingStep = .personalInfo
+    @Published var currentStep: OnboardingStep = .healthConnect
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isComplete: Bool = false
+    
+    // HealthKit State
+    @Published var healthKitConnected: Bool = false
+    @Published var healthKitData: HealthKitUserData?
+    @Published var prefilledFromHealthKit: Set<String> = []
     
     // Page 1: Personal Info
     @Published var birthYear: Int = 1990
@@ -81,6 +94,7 @@ final class OnboardingViewModel: ObservableObject {
     // MARK: - Dependencies
     
     private let profileService: UserProfileService
+    let healthKitService: HealthKitServiceProtocol
     private var profile: UserProfile?
     
     // MARK: - Computed Properties
@@ -151,8 +165,9 @@ final class OnboardingViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(profileService: UserProfileService) {
+    init(profileService: UserProfileService, healthKitService: HealthKitServiceProtocol) {
         self.profileService = profileService
+        self.healthKitService = healthKitService
         logger.info("🟢 OnboardingViewModel initialized")
     }
     
@@ -353,5 +368,113 @@ final class OnboardingViewModel: ObservableObject {
         
         isLoading = false
         print("🔐 [ONBOARDING] isLoading = false, isComplete = \(isComplete)")
+    }
+    
+    // MARK: - HealthKit Integration
+    
+    /// Connect to HealthKit and fetch user characteristics
+    /// - Returns: true if authorization was granted and data was fetched
+    @discardableResult
+    func connectHealthKit() async -> Bool {
+        print("📍 [Onboarding] connectHealthKit() called")
+        isLoading = true
+        errorMessage = nil
+        
+        print("📍 [Onboarding] Checking HealthKit availability...")
+        guard healthKitService.isAvailable else {
+            print("⚠️ [Onboarding] HealthKit not available on this device")
+            isLoading = false
+            return false
+        }
+        print("✅ [Onboarding] HealthKit is available")
+        
+        do {
+            // Request authorization
+            print("📍 [Onboarding] Requesting HealthKit authorization...")
+            let authorized = try await healthKitService.requestAuthorization()
+            print("📍 [Onboarding] Authorization result: \(authorized)")
+            
+            guard authorized else {
+                print("⚠️ [Onboarding] HealthKit authorization returned false")
+                isLoading = false
+                return false
+            }
+            
+            healthKitConnected = true
+            print("✅ [Onboarding] HealthKit connected!")
+            
+            // Fetch user characteristics
+            print("📍 [Onboarding] Fetching user characteristics...")
+            let data = try await healthKitService.fetchUserCharacteristics()
+            healthKitData = data
+            print("📍 [Onboarding] Data received - hasData: \(data.hasData)")
+            
+            // Prefill fields from HealthKit data
+            print("📍 [Onboarding] Prefilling fields...")
+            prefillFromHealthKit(data)
+            
+            print("✅ [Onboarding] HealthKit data fetched and prefilled successfully!")
+            print("   - prefilledFromHealthKit: \(prefilledFromHealthKit)")
+            isLoading = false
+            return true
+            
+        } catch let error as NSError {
+            print("❌ [Onboarding] HealthKit connection failed:")
+            print("   - Domain: \(error.domain)")
+            print("   - Code: \(error.code)")
+            print("   - Description: \(error.localizedDescription)")
+            print("   - UserInfo: \(error.userInfo)")
+            errorMessage = error.localizedDescription
+            isLoading = false
+            return false
+        }
+    }
+    
+    /// Prefill onboarding fields from HealthKit data
+    private func prefillFromHealthKit(_ data: HealthKitUserData) {
+        logger.info("📍 Prefilling from HealthKit data...")
+        prefilledFromHealthKit.removeAll()
+        
+        // Biological Sex
+        if let hkSex = data.biologicalSex, let sex = hkSex.asSexAtBirth {
+            sexAtBirth = sex
+            prefilledFromHealthKit.insert("sexAtBirth")
+            logger.debug("  Prefilled sexAtBirth: \(sex.rawValue)")
+        }
+        
+        // Birth Year
+        if let year = data.birthYear {
+            birthYear = year
+            prefilledFromHealthKit.insert("birthYear")
+            logger.debug("  Prefilled birthYear: \(year)")
+        }
+        
+        // Height
+        if let height = data.heightCm {
+            heightCm = height
+            prefilledFromHealthKit.insert("heightCm")
+            logger.debug("  Prefilled heightCm: \(height)")
+        }
+        
+        // Weight
+        if let weight = data.weightKg {
+            weightKg = weight
+            prefilledFromHealthKit.insert("weightKg")
+            logger.debug("  Prefilled weightKg: \(weight)")
+        }
+        
+        logger.info("✅ Prefilled \(self.prefilledFromHealthKit.count) fields from HealthKit")
+    }
+    
+    /// Check if a field was prefilled from HealthKit
+    func isPrefilledFromHealthKit(_ field: String) -> Bool {
+        prefilledFromHealthKit.contains(field)
+    }
+    
+    /// Progress for display (excludes healthConnect step)
+    var displayProgress: Double {
+        guard currentStep != .healthConnect else { return 0 }
+        let adjustedStep = currentStep.rawValue - 1 // Subtract 1 because healthConnect is step 0
+        return Double(adjustedStep + 1) / Double(OnboardingStep.displaySteps.count)
     }
 }

@@ -352,8 +352,12 @@ struct EquipmentRow: View {
 #Preview {
     let mockProvider = SupabaseClientProvider()
     let profileService = SupabaseUserProfileService(clientProvider: mockProvider)
-    let viewModel = OnboardingViewModel(profileService: profileService)
+    let healthKitService = HealthKitService()
+    let viewModel = OnboardingViewModel(
+        profileService: profileService,
+        healthKitService: healthKitService
+    )
     
-    return PreferencesPageView(viewModel: viewModel)
+    PreferencesPageView(viewModel: viewModel)
         .appBackground()
 }

@@ -19,8 +19,15 @@ struct OnboardingContainerView: View {
     
     // MARK: - Initialization
     
-    init(profileService: UserProfileService, isOnboardingComplete: Binding<Bool>) {
-        _viewModel = StateObject(wrappedValue: OnboardingViewModel(profileService: profileService))
+    init(
+        profileService: UserProfileService,
+        healthKitService: HealthKitServiceProtocol,
+        isOnboardingComplete: Binding<Bool>
+    ) {
+        _viewModel = StateObject(wrappedValue: OnboardingViewModel(
+            profileService: profileService,
+            healthKitService: healthKitService
+        ))
         _isOnboardingComplete = isOnboardingComplete
     }
     
@@ -28,13 +35,19 @@ struct OnboardingContainerView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Step Indicator
-            stepIndicator
-                .padding(.top, AppTheme.Spacing.xl)
-                .padding(.horizontal, AppTheme.Spacing.xl)
+            // Step Indicator (hidden during HealthConnect step)
+            if viewModel.currentStep != .healthConnect {
+                stepIndicator
+                    .padding(.top, AppTheme.Spacing.xl)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
+                    .transition(.opacity)
+            }
             
             // Content
             TabView(selection: $viewModel.currentStep) {
+                HealthConnectPageView(viewModel: viewModel)
+                    .tag(OnboardingStep.healthConnect)
+                
                 PersonalInfoPageView(viewModel: viewModel)
                     .tag(OnboardingStep.personalInfo)
                 
@@ -78,15 +91,15 @@ struct OnboardingContainerView: View {
                     // Progress
                     RoundedRectangle(cornerRadius: 4)
                         .fill(AppTheme.Colors.accent)
-                        .frame(width: geometry.size.width * viewModel.progress, height: 4)
-                        .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
+                        .frame(width: geometry.size.width * viewModel.displayProgress, height: 4)
+                        .animation(.easeInOut(duration: 0.3), value: viewModel.displayProgress)
                 }
             }
             .frame(height: 4)
             
-            // Step labels
+            // Step labels (only show displaySteps, not healthConnect)
             HStack {
-                ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
+                ForEach(OnboardingStep.displaySteps, id: \.rawValue) { step in
                     HStack(spacing: AppTheme.Spacing.xs) {
                         // Step number
                         ZStack {
@@ -100,7 +113,9 @@ struct OnboardingContainerView: View {
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(AppTheme.Colors.background)
                             } else {
-                                Text("\(step.rawValue + 1)")
+                                // Display step number (adjusted for display)
+                                let displayNumber = step.rawValue // Already 1-indexed for display steps
+                                Text("\(displayNumber)")
                                     .font(AppTheme.Typography.labelSmall())
                                     .foregroundStyle(step.rawValue <= viewModel.currentStep.rawValue ?
                                                      AppTheme.Colors.background : AppTheme.Colors.textTertiary)
@@ -114,7 +129,7 @@ struct OnboardingContainerView: View {
                                              AppTheme.Colors.textPrimary : AppTheme.Colors.textTertiary)
                     }
                     
-                    if step != OnboardingStep.allCases.last {
+                    if step != OnboardingStep.displaySteps.last {
                         Spacer()
                     }
                 }
@@ -128,9 +143,11 @@ struct OnboardingContainerView: View {
 #Preview {
     let mockProvider = SupabaseClientProvider()
     let profileService = SupabaseUserProfileService(clientProvider: mockProvider)
+    let healthKitService = HealthKitService()
     
     return OnboardingContainerView(
         profileService: profileService,
+        healthKitService: healthKitService,
         isOnboardingComplete: .constant(false)
     )
 }

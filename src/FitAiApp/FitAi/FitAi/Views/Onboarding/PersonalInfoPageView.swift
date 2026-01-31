@@ -70,9 +70,15 @@ struct PersonalInfoPageView: View {
     
     private var birthYearSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            Text("BIRTH YEAR")
-                .font(AppTheme.Typography.label())
-                .foregroundStyle(AppTheme.Colors.textSecondary)
+            HStack(spacing: AppTheme.Spacing.xs) {
+                Text("BIRTH YEAR")
+                    .font(AppTheme.Typography.label())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                
+                if viewModel.isPrefilledFromHealthKit("birthYear") {
+                    HealthKitIndicator()
+                }
+            }
             
             // Year picker
             Picker("Birth Year", selection: $viewModel.birthYear) {
@@ -99,9 +105,15 @@ struct PersonalInfoPageView: View {
     
     private var sexSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            Text("SEX AT BIRTH")
-                .font(AppTheme.Typography.label())
-                .foregroundStyle(AppTheme.Colors.textSecondary)
+            HStack(spacing: AppTheme.Spacing.xs) {
+                Text("SEX AT BIRTH")
+                    .font(AppTheme.Typography.label())
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    
+                if viewModel.isPrefilledFromHealthKit("sexAtBirth") {
+                    HealthKitIndicator()
+                }
+            }
             
             // Selection chips
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppTheme.Spacing.md) {
@@ -133,7 +145,8 @@ struct PersonalInfoPageView: View {
                     title: "Height",
                     value: String(format: "%.0f", viewModel.heightCm),
                     unit: "cm",
-                    icon: "ruler"
+                    icon: "ruler",
+                    isPrefilled: viewModel.isPrefilledFromHealthKit("heightCm")
                 ) {
                     showHeightPicker = true
                 }
@@ -143,7 +156,8 @@ struct PersonalInfoPageView: View {
                     title: "Weight",
                     value: String(format: "%.1f", viewModel.weightKg),
                     unit: "kg",
-                    icon: "scalemass"
+                    icon: "scalemass",
+                    isPrefilled: viewModel.isPrefilledFromHealthKit("weightKg")
                 ) {
                     showWeightPicker = true
                 }
@@ -160,7 +174,7 @@ struct PersonalInfoPageView: View {
                 .presentationDragIndicator(.visible)
         }
     }
-    
+
     // MARK: - BMI Section
     
     private var bmiSection: some View {
@@ -347,11 +361,22 @@ struct MetricCard: View {
     let value: String
     let unit: String
     let icon: String
+    var isPrefilled: Bool = false
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
             VStack(spacing: AppTheme.Spacing.md) {
+                HStack {
+                    Spacer()
+                    if isPrefilled {
+                        HealthKitIndicator()
+                            .padding(.top, 4)
+                            .padding(.trailing, 4)
+                    }
+                }
+                .frame(height: 0) // Don't affect layout
+                
                 Image(systemName: icon)
                     .font(.system(size: 24))
                     .foregroundStyle(AppTheme.Colors.accent)
@@ -381,6 +406,25 @@ struct MetricCard: View {
             .background(AppTheme.Colors.cardBackground)
             .cornerRadius(AppTheme.CornerRadius.large)
         }
+    }
+}
+
+// MARK: - HealthKit Indicator
+
+struct HealthKitIndicator: View {
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 8))
+                .foregroundStyle(.pink)
+            Text("Apple Health")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.pink)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.pink.opacity(0.1))
+        .cornerRadius(4)
     }
 }
 
@@ -520,8 +564,12 @@ struct BodyFatPickerSheet: View {
 #Preview {
     let mockProvider = SupabaseClientProvider()
     let profileService = SupabaseUserProfileService(clientProvider: mockProvider)
-    let viewModel = OnboardingViewModel(profileService: profileService)
+    let healthKitService = HealthKitService()
+    let viewModel = OnboardingViewModel(
+        profileService: profileService,
+        healthKitService: healthKitService
+    )
     
-    return PersonalInfoPageView(viewModel: viewModel)
+    PersonalInfoPageView(viewModel: viewModel)
         .appBackground()
 }

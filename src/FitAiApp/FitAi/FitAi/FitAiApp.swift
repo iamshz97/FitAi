@@ -20,6 +20,35 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Environment Key for HealthKit Service
+
+private struct HealthKitServiceKey: EnvironmentKey {
+    static let defaultValue: HealthKitServiceProtocol = HealthKitService()
+}
+
+extension EnvironmentValues {
+    var healthKitService: HealthKitServiceProtocol {
+        get { self[HealthKitServiceKey.self] }
+        set { self[HealthKitServiceKey.self] = newValue }
+    }
+}
+
+// MARK: - Environment Key for Health Data Sync Service
+
+private struct HealthDataSyncServiceKey: EnvironmentKey {
+    static let defaultValue: HealthDataSyncServiceProtocol = HealthDataSyncService(
+        healthKitService: HealthKitService(),
+        supabaseClient: SupabaseClientProvider().client
+    )
+}
+
+extension EnvironmentValues {
+    var healthDataSyncService: HealthDataSyncServiceProtocol {
+        get { self[HealthDataSyncServiceKey.self] }
+        set { self[HealthDataSyncServiceKey.self] = newValue }
+    }
+}
+
 @main
 struct FitAiApp: App {
     
@@ -34,6 +63,12 @@ struct FitAiApp: App {
     /// The user profile service
     private let profileService: SupabaseUserProfileService
     
+    /// The HealthKit service
+    private let healthKitService: HealthKitServiceProtocol
+    
+    /// The health data sync service
+    private let healthDataSyncService: HealthDataSyncServiceProtocol
+    
     /// The authentication view model (shared across the app)
     @StateObject private var authViewModel: AuthViewModel
     
@@ -46,10 +81,19 @@ struct FitAiApp: App {
         let profileSvc = SupabaseUserProfileService(clientProvider: provider)
         let viewModel = AuthViewModel(authService: authSvc)
         
+        // Create HealthKit services
+        let healthKit = HealthKitService()
+        let healthSync = HealthDataSyncService(
+            healthKitService: healthKit,
+            supabaseClient: provider.client
+        )
+        
         // Store references
         self.clientProvider = provider
         self.authService = authSvc
         self.profileService = profileSvc
+        self.healthKitService = healthKit
+        self.healthDataSyncService = healthSync
         self._authViewModel = StateObject(wrappedValue: viewModel)
     }
     
@@ -57,9 +101,14 @@ struct FitAiApp: App {
     
     var body: some Scene {
         WindowGroup {
-            RootView(profileService: profileService)
-                .environmentObject(authViewModel)
-                .environment(\.clientProvider, clientProvider)
+            RootView(
+                profileService: profileService,
+                healthKitService: healthKitService
+            )
+            .environmentObject(authViewModel)
+            .environment(\.clientProvider, clientProvider)
+            .environment(\.healthKitService, healthKitService)
+            .environment(\.healthDataSyncService, healthDataSyncService)
         }
     }
 }

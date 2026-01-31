@@ -30,6 +30,9 @@ struct RootView: View {
     /// Profile service - passed from FitAiApp to ensure same Supabase client
     let profileService: SupabaseUserProfileService
     
+    /// HealthKit service - passed from FitAiApp
+    let healthKitService: HealthKitServiceProtocol
+    
     // MARK: - State
     
     @State private var appState: AppState = .loading
@@ -49,6 +52,7 @@ struct RootView: View {
             case .onboarding:
                 OnboardingContainerView(
                     profileService: profileService,
+                    healthKitService: healthKitService,
                     isOnboardingComplete: $onboardingComplete
                 )
                 
@@ -148,8 +152,12 @@ struct RootView: View {
     let mockProvider = SupabaseClientProvider()
     let authService = SupabaseAuthService(clientProvider: mockProvider)
     let profileService = SupabaseUserProfileService(clientProvider: mockProvider)
+    let healthKitService = HealthKitService()
     let viewModel = AuthViewModel(authService: authService)
     
-    return RootView(profileService: profileService)
-        .environmentObject(viewModel)
+    return RootView(
+        profileService: profileService,
+        healthKitService: healthKitService
+    )
+    .environmentObject(viewModel)
 }
