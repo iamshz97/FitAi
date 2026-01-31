@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from deepagents import create_deep_agent
+from langchain.agents import create_agent
 from langgraph.checkpoint.memory import MemorySaver
 import pathlib
 
@@ -255,16 +256,16 @@ reasoning_subagent = {
     "name": "task-reasoner",
     "description": REASONING_SUBAGENT_DESCRIPTION,
     "system_prompt": REASONING_SUBAGENT_SYSTEM_PROMPT,
-    "tools": [calculate_bmr, calculate_tdee, fetch_user_profile],
-    "model": DEFAULT_MODEL,
+    # "tools": [calculate_bmr, calculate_tdee, fetch_user_profile],
+    "model": "openai:gpt-4o-mini",
 }
 
 workout_subagent = {
     "name": "workout-planner",
     "description": WORKOUT_SUBAGENT_DESCRIPTION,
     "system_prompt": WORKOUT_SUBAGENT_SYSTEM_PROMPT,
-    "tools": [calculate_bmr, calculate_tdee, fetch_current_workout_plan, fetch_user_profile],
-    "model": DEFAULT_MODEL,
+    # "tools": [calculate_bmr, calculate_tdee, fetch_current_workout_plan, fetch_user_profile],
+    "model": "openai:gpt-4o-mini",
 }
 
 meal_subagent = {
@@ -306,14 +307,21 @@ meal_subagent = {
 
 def create_fitness_agent(thread_id: str = None):
     """Create the main fitness planning agent with subagents."""
-    checkpointer = MemorySaver()
     
     return create_deep_agent(
         model=DEFAULT_MODEL,
         name="fitness-coordinator",
-        checkpointer=checkpointer,
         system_prompt=COORDINATOR_SYSTEM_PROMPT,
-        subagents=[reasoning_subagent, workout_subagent, meal_subagent]
+        subagents=[reasoning_subagent, workout_subagent]
+    )
+
+
+def create_workout_agent():
+    """Create a dedicated workout planning agent with structured output."""
+    return create_deep_agent(
+        model=DEFAULT_MODEL,
+        system_prompt=WORKOUT_SUBAGENT_SYSTEM_PROMPT,
+        response_format=StructuredWorkoutPlan
     )
 
 
@@ -772,8 +780,8 @@ Return the task instructions as structured markdown text.
         # Add delay between requests
         time.sleep(2)
         
-        # STEP 2: Generate Workout Plan with profile + task + response format
-        print(f"💪 Step 2: Running workout-planner...")
+        # STEP 2: Generate Workout Plan using structured output agent
+        print(f"💪 Step 2: Running workout-planner with structured output...")
         
         workout_prompt = f"""
 {request.profile}
@@ -782,40 +790,36 @@ Return the task instructions as structured markdown text.
 {task_instructions}
 """
         
+        # Create workout agent with structured output
+        workout_agent = create_workout_agent()
+        
         workout_response = invoke_agent_with_retry(
-            agent, 
+            workout_agent, 
             {
-                "messages": [{"role": "user", "content": f"Use the workout-planner subagent for this task: {workout_prompt}"}]
-            },
-            thread_id=thread_id
+                "messages": [{"role": "user", "content": workout_prompt}]
+            }
         )
         
-        # Debug: Log raw response structure
-        if workout_response.get("messages"):
-            last_msg = workout_response["messages"][-1]
-            print(f"📋 Workout response type: {type(last_msg.content)}")
-            print(f"📋 Workout response content (first 500 chars): {str(last_msg.content)[:500]}")
+        # Get structured response directly from agent
+        workout_plan_structured: StructuredWorkoutPlan = workout_response.get("structured_response")
         
-        workout_content = workout_response["messages"][-1].content if workout_response.get("messages") else ""
-        workout_text = extract_message_content(workout_content)
-        
-        print(f"📋 Extracted workout text (first 500 chars): {workout_text[:500] if workout_text else 'EMPTY'}")
-        
-        workout_plan_raw = extract_json_from_response(workout_text, "Workout")
-        
-        # Validate against StructuredWorkoutPlan schema
-        try:
-            validated_workout = StructuredWorkoutPlan.model_validate(workout_plan_raw)
-            workout_plan = validated_workout.model_dump()
-            print(f"✅ Workout plan validated against schema: {validated_workout.name}")
-        except Exception as validation_error:
-            print(f"⚠️ Workout validation failed: {validation_error}")
-            # Fall back to raw response if validation fails
-            workout_plan = workout_plan_raw
+        if workout_plan_structured:
+            workout_plan = workout_plan_structured.model_dump()
+            print(f"✅ Workout plan generated with structured output: {workout_plan_structured.name}")
+        else:
+            # Fallback to extracting from message if structured_response not available
+            print(f"⚠️ No structured_response, falling back to message extraction")
+            workout_content = workout_response["messages"][-1].content if workout_response.get("messages") else ""
+            workout_text = extract_message_content(workout_content)
+            workout_plan_raw = extract_json_from_response(workout_text, "Workout")
+            try:
+                validated_workout = StructuredWorkoutPlan.model_validate(workout_plan_raw)
+                workout_plan = validated_workout.model_dump()
+            except Exception as validation_error:
+                print(f"⚠️ Workout validation failed: {validation_error}")
+                workout_plan = workout_plan_raw
         
         print(f"📋 Workout plan keys: {list(workout_plan.keys())}")
-        
-        print(f"✅ Workout plan generated")
         
         # Add delay between requests
         time.sleep(2)

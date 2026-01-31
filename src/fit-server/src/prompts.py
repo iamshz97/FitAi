@@ -210,10 +210,6 @@ CRITICAL WORKFLOW (MUST FOLLOW THIS ORDER):
    - Include the full reasoning output in your delegation
    - The planner will follow safety and modification instructions
 
-3. THIRD: Use the meal-planner subagent with the reasoning instructions
-   - Include the full reasoning output in your delegation
-   - The planner will follow dietary and restriction instructions
-
 IMPORTANT RULES:
 - NEVER skip the reasoning step - it determines safety requirements
 - ALWAYS pass the reasoning instructions to both planners
