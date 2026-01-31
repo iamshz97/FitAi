@@ -55,6 +55,7 @@ struct MainTabView: View {
     
     @State private var selectedTab: TabItem = .home
     @EnvironmentObject private var authViewModel: AuthViewModel
+    @Environment(\.fitnessPlanService) private var fitnessPlanService
     
     // MARK: - Init
     
@@ -87,7 +88,7 @@ struct MainTabView: View {
         TabView(selection: $selectedTab) {
             // Home Tab
             NavigationStack {
-                HomeTabView()
+                HomeTabView(fitnessPlanService: fitnessPlanService)
                     .toolbarBackground(AppTheme.Colors.background, for: .navigationBar)
                     .toolbarBackground(.visible, for: .navigationBar)
                     .toolbarColorScheme(.dark, for: .navigationBar)

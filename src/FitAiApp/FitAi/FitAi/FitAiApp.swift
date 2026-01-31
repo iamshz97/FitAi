@@ -49,6 +49,21 @@ extension EnvironmentValues {
     }
 }
 
+// MARK: - Environment Key for Fitness Plan Service
+
+private struct FitnessPlanServiceKey: EnvironmentKey {
+    static let defaultValue: FitnessPlanServiceProtocol = FitnessPlanService(
+        supabaseClient: SupabaseClientProvider().client
+    )
+}
+
+extension EnvironmentValues {
+    var fitnessPlanService: FitnessPlanServiceProtocol {
+        get { self[FitnessPlanServiceKey.self] }
+        set { self[FitnessPlanServiceKey.self] = newValue }
+    }
+}
+
 @main
 struct FitAiApp: App {
     
@@ -69,6 +84,9 @@ struct FitAiApp: App {
     /// The health data sync service
     private let healthDataSyncService: HealthDataSyncServiceProtocol
     
+    /// The fitness plan service
+    private let fitnessPlanService: FitnessPlanServiceProtocol
+    
     /// The authentication view model (shared across the app)
     @StateObject private var authViewModel: AuthViewModel
     
@@ -88,12 +106,16 @@ struct FitAiApp: App {
             supabaseClient: provider.client
         )
         
+        // Create fitness plan service
+        let fitnessPlan = FitnessPlanService(supabaseClient: provider.client)
+        
         // Store references
         self.clientProvider = provider
         self.authService = authSvc
         self.profileService = profileSvc
         self.healthKitService = healthKit
         self.healthDataSyncService = healthSync
+        self.fitnessPlanService = fitnessPlan
         self._authViewModel = StateObject(wrappedValue: viewModel)
     }
     
@@ -109,6 +131,7 @@ struct FitAiApp: App {
             .environment(\.clientProvider, clientProvider)
             .environment(\.healthKitService, healthKitService)
             .environment(\.healthDataSyncService, healthDataSyncService)
+            .environment(\.fitnessPlanService, fitnessPlanService)
         }
     }
 }

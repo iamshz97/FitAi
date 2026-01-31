@@ -325,3 +325,52 @@ class StructuredWorkoutPlan(BaseModel):
     plan_type: str = Field(..., description="Type: 'strength', 'hypertrophy', 'endurance', 'weight_loss', 'general_fitness', etc.")
     duration_weeks: int = Field(..., ge=1, le=52, description="Duration of the plan in weeks")
     sessions: list[WorkoutSession] = Field(..., description="List of workout sessions in the plan")
+
+
+# ==================== Structured Meal Plan Models (for LLM output) ====================
+
+class StructuredMeal(BaseModel):
+    """A single meal within the nutrition plan."""
+    meal_type: str = Field(..., description="Type: 'breakfast', 'lunch', 'dinner', 'snack'")
+    name: str = Field(..., description="Name of the meal")
+    ingredients: list[str] = Field(..., description="List of ingredients with quantities")
+    calories: int = Field(..., ge=0, description="Calories in this meal")
+    protein_g: float = Field(..., ge=0, description="Protein in grams")
+    carbs_g: float = Field(..., ge=0, description="Carbohydrates in grams")
+    fat_g: float = Field(..., ge=0, description="Fat in grams")
+    preparation_time_minutes: int = Field(..., ge=0, description="Time to prepare in minutes")
+    instructions: Optional[str] = Field(None, description="Brief preparation instructions")
+
+
+class StructuredDailyMealPlan(BaseModel):
+    """A single day's meal plan."""
+    day_number: int = Field(..., ge=1, le=7, description="Day of the week (1=Monday)")
+    day_name: str = Field(..., description="Name of the day")
+    meals: list[StructuredMeal] = Field(..., description="All meals for this day")
+    total_calories: int = Field(..., description="Total calories for the day")
+    total_protein_g: float = Field(..., description="Total protein for the day")
+    total_carbs_g: float = Field(..., description="Total carbs for the day")
+    total_fat_g: float = Field(..., description="Total fat for the day")
+
+
+class StructuredMealPlan(BaseModel):
+    """Complete structured meal plan output from the LLM."""
+    name: str = Field(..., description="Name of the meal plan")
+    description: str = Field(..., description="Description of the plan and its goals")
+    daily_calorie_target: int = Field(..., description="Target calories per day")
+    protein_target_g: float = Field(..., description="Target protein in grams per day")
+    carbs_target_g: float = Field(..., description="Target carbs in grams per day")
+    fat_target_g: float = Field(..., description="Target fat in grams per day")
+    duration_weeks: int = Field(..., ge=1, le=52, description="Duration of the plan in weeks")
+    daily_plans: list[StructuredDailyMealPlan] = Field(..., description="Daily meal plans for a week")
+    shopping_list: list[str] = Field(default_factory=list, description="Weekly shopping list")
+    tips: list[str] = Field(default_factory=list, description="Nutrition tips and recommendations")
+
+
+# ==================== Combined Plan Output Model (for direct LLM generation) ====================
+
+class CompletePlanOutput(BaseModel):
+    """Combined output model for single-shot plan generation."""
+    task_instructions: str = Field(..., description="Analysis summary including risk assessment, safety considerations, and key recommendations")
+    workout_plan: StructuredWorkoutPlan = Field(..., description="Complete structured workout plan")
+    meal_plan: StructuredMealPlan = Field(..., description="Complete structured meal plan")
