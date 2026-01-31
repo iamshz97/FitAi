@@ -318,7 +318,7 @@ def create_fitness_agent(thread_id: str = None):
 
 def create_workout_agent():
     """Create a dedicated workout planning agent with structured output."""
-    return create_deep_agent(
+    return create_agent(
         model=DEFAULT_MODEL,
         system_prompt=WORKOUT_SUBAGENT_SYSTEM_PROMPT,
         response_format=StructuredWorkoutPlan
@@ -725,11 +725,11 @@ Be extremely thorough given the comprehensive nature of this profile.
 @app.post("/generate-plan", response_model=SimplePlanResponse)
 async def generate_plan(request: TextProfileRequest):
     """
-    Generate personalized workout and meal plans based on text profile description.
+    Generate personalized workout plan based on text profile description.
     
-    This endpoint accepts a simple text description of the user's profile and uses
-    a reasoning agent to generate task instructions, which are then passed to
-    workout and meal planning agents.
+    Uses a two-step subagent architecture:
+    1. Reasoning Subagent: Analyzes profile and generates task instructions
+    2. Workout Subagent: Creates structured workout plan following the instructions
     
     Input format:
     {
@@ -737,29 +737,30 @@ async def generate_plan(request: TextProfileRequest):
         "profile": "Text description including demographics, medical history, goals, constraints"
     }
     """
+    import time as timing
+    start_time = timing.time()
+    
     try:
         # Create the fitness agent with thread for state
         thread_id = f"plan_{request.user_id}_{uuid.uuid4().hex[:8]}"
         agent = create_fitness_agent(thread_id)
         
         # STEP 1: Run the Reasoning Subagent to generate task instructions
-        print(f"🧠 Step 1: Running task-reasoner to generate task instructions...")
+        print(f"🧠 Step 1: Running task-reasoner subagent...")
+        step1_start = timing.time()
         
         reasoning_prompt = f"""
-Analyze the following user profile and generate detailed TASK INSTRUCTIONS for the workout and meal planning agents.
+Analyze the following user profile and generate detailed TASK INSTRUCTIONS for the workout planning agent.
 
 **PROFILE:**
 {request.profile}
 
-Generate comprehensive task instructions that cover:
-1. Pre-participation assessment requirements
-2. Exercise prescription tasks (using FITT-VP principles)
-3. Nutrition prescription tasks
-4. Behavioral & lifestyle tasks
-5. Monitoring & adaptation tasks
+Generate concise task instructions covering:
+1. Risk assessment and safety considerations
+2. Exercise prescription guidelines (FITT-VP principles)
+3. Key contraindications or modifications needed
 
-Remember: You are ONLY generating instructions/tasks - NOT making conclusions or creating plans.
-Return the task instructions as structured markdown text.
+Return the task instructions as structured markdown text. Be concise but thorough.
 """
         
         reasoning_response = invoke_agent_with_retry(
@@ -770,24 +771,23 @@ Return the task instructions as structured markdown text.
             thread_id=thread_id
         )
         reasoning_content = reasoning_response["messages"][-1].content if reasoning_response.get("messages") else ""
-        reasoning_text = extract_message_content(reasoning_content)
+        task_instructions = extract_message_content(reasoning_content).strip()
         
-        # Extract task instructions (it's markdown, not JSON)
-        task_instructions = reasoning_text.strip()
-        
-        print(f"✅ Task instructions generated ({len(task_instructions)} chars)")
-        
-        # Add delay between requests
-        time.sleep(2)
+        step1_time = timing.time() - step1_start
+        print(f"✅ Task instructions generated in {step1_time:.1f}s ({len(task_instructions)} chars)")
         
         # STEP 2: Generate Workout Plan using structured output agent
-        print(f"💪 Step 2: Running workout-planner with structured output...")
+        print(f"💪 Step 2: Running workout-planner subagent with structured output...")
+        step2_start = timing.time()
         
         workout_prompt = f"""
+**PROFILE:**
 {request.profile}
 
-**TASK:**
+**TASK INSTRUCTIONS:**
 {task_instructions}
+
+Generate a complete structured workout plan following the task instructions.
 """
         
         # Create workout agent with structured output
@@ -805,7 +805,7 @@ Return the task instructions as structured markdown text.
         
         if workout_plan_structured:
             workout_plan = workout_plan_structured.model_dump()
-            print(f"✅ Workout plan generated with structured output: {workout_plan_structured.name}")
+            print(f"✅ Structured workout plan: {workout_plan_structured.name}")
         else:
             # Fallback to extracting from message if structured_response not available
             print(f"⚠️ No structured_response, falling back to message extraction")
@@ -819,58 +819,13 @@ Return the task instructions as structured markdown text.
                 print(f"⚠️ Workout validation failed: {validation_error}")
                 workout_plan = workout_plan_raw
         
-        print(f"📋 Workout plan keys: {list(workout_plan.keys())}")
-        
-        # Add delay between requests
-        time.sleep(2)
-        
-        # STEP 3: Generate Meal Plan with same prompt structure
-        print(f"🍎 Step 3: Running meal-planner...")
-        
-        meal_prompt = f"""
-{request.profile}
-
-**TASK:**
-{task_instructions}
-
-"""
-        
-        meal_response = invoke_agent_with_retry(
-            agent, 
-            {
-                "messages": [{"role": "user", "content": f"Use the meal-planner subagent for this task: {meal_prompt}"}]
-            },
-            thread_id=thread_id
-        )
-        
-        # Debug: Log raw response structure
-        if meal_response.get("messages"):
-            last_msg = meal_response["messages"][-1]
-            print(f"📋 Meal response type: {type(last_msg.content)}")
-            print(f"📋 Meal response content (first 500 chars): {str(last_msg.content)[:500]}")
-        
-        meal_content = meal_response["messages"][-1].content if meal_response.get("messages") else ""
-        meal_text = extract_message_content(meal_content)
-        
-        print(f"📋 Extracted meal text (first 500 chars): {meal_text[:500] if meal_text else 'EMPTY'}")
-        
-        meal_plan = extract_json_from_response(meal_text, "Meal")
-        
-        print(f"📋 Meal plan keys: {list(meal_plan.keys())}")
-        print(f"📋 Meal summary length: {len(meal_plan.get('summary', ''))}")
-        
-        # Ensure we have a summary field with actual content
-        if "summary" not in meal_plan or not meal_plan.get("summary"):
-            if meal_text:
-                meal_plan = {"summary": meal_text}
-            elif "raw_response" in meal_plan:
-                meal_plan = {"summary": meal_plan["raw_response"]}
-        
-        print(f"✅ Meal plan generated ({len(meal_plan.get('summary', ''))} chars)")
-        print(f"🎉 All plans generated successfully!")
+        step2_time = timing.time() - step2_start
+        print(f"✅ Workout plan generated in {step2_time:.1f}s")
         
         # Generate unique ID for this plan
         plan_id = str(uuid.uuid4())
+        total_time = timing.time() - start_time
+        print(f"🎉 Plan generated successfully in {total_time:.1f}s total")
         
         # Save to Supabase
         await save_to_supabase(
@@ -879,7 +834,7 @@ Return the task instructions as structured markdown text.
             user_profile={"profile_text": request.profile},
             reasoning_analysis={"task_instructions": task_instructions},
             workout_plan=workout_plan,
-            meal_plan=meal_plan
+            meal_plan={}  # Empty for now - meal planning not implemented
         )
         
         return SimplePlanResponse(
@@ -888,7 +843,7 @@ Return the task instructions as structured markdown text.
             profile=request.profile,
             task_instructions=task_instructions,
             workout_plan=workout_plan,
-            meal_plan=meal_plan,
+            meal_plan=None,  # Meal planning not implemented yet
             created_at=datetime.utcnow().isoformat()
         )
         
