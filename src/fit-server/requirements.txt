@@ -1,0 +1,15 @@
+langchain
+langchain-openai
+langchain-anthropic
+langchain-google-genai
+langgraph
+python-dotenv
+tavily-python
+httpx
+markdownify
+pydantic
+deepagents
+fastapi
+supabase
+uvicorn
+tenacity

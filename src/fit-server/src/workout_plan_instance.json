@@ -1,0 +1,159 @@
+{
+  "name": "5x5 Strength Foundation",
+  "description": "Classic strict 5x5 linear progression program for building raw strength in compound movements.",
+  "plan_type": "strength",
+  "duration_weeks": 8,
+  "sessions": [
+    {
+      "session_name": "Workout A",
+      "week_number": 1,
+      "day_number": 1,
+      "session_order": 1,
+      "session_type": "strength",
+      "exercises": [
+        {
+          "name": "Back Squat",
+          "category": "strength",
+          "equipment": ["barbell", "rack"],
+          "muscle_groups": ["quadriceps", "glutes", "core"],
+          "movement_pattern": "squat",
+          "is_unilateral": false,
+          "is_timed": false,
+          "session_exercise_details": {
+            "exercise_order": 1,
+            "sets": 5,
+            "reps": 5,
+            "rest_seconds": 180,
+            "rest_seconds_min": 180,
+            "rest_seconds_max": 300,
+            "load_type": "rpe_based",
+            "tempo": "2-0-1-0",
+            "notes": "maintain solid torso angle",
+            "intensity_prescriptions": [
+              {
+                "intensity_type_code": "rpe",
+                "intensity_name": "Rate of Perceived Exertion",
+                "target_value": 7.5,
+                "target_value_min": 7,
+                "target_value_max": 8,
+                "applies_to_sets": [1, 2, 3, 4, 5],
+                "notes": "Leave 2-3 reps in the tank"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Bench Press",
+          "category": "strength",
+          "equipment": ["barbell", "bench"],
+          "muscle_groups": ["chest", "anterior_deltoids", "triceps"],
+          "movement_pattern": "push",
+          "description": "Standard flat barbell bench press.",
+          "is_unilateral": false,
+          "is_timed": false,
+          "session_exercise_details": {
+            "exercise_order": 2,
+            "sets": 5,
+            "reps": 5,
+            "rest_seconds": 180,
+            "load_type": "rpe_based",
+            "tempo": "2-1-X-0",
+            "notes": "Pause comfortably on chest",
+            "intensity_prescriptions": [
+              {
+                "intensity_type_code": "rpe",
+                "target_value": 8,
+                "target_value_min": 7.5,
+                "target_value_max": 8.5
+              }
+            ]
+          }
+        },
+        {
+          "name": "Barbell Row",
+          "category": "strength",
+          "equipment": ["barbell"],
+          "muscle_groups": ["lats", "rhomboids", "biceps"],
+          "movement_pattern": "pull",
+          "is_unilateral": false,
+          "is_timed": false,
+          "session_exercise_details": {
+            "exercise_order": 3,
+            "sets": 5,
+            "reps": 5,
+            "rest_seconds": 120,
+            "load_type": "rpe_based",
+            "tempo": "2-0-1-0",
+            "notes": "Do not use momentum",
+            "intensity_prescriptions": [
+              {
+                "intensity_type_code": "rpe",
+                "target_value": 8
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "session_name": "Workout B",
+      "week_number": 1,
+      "day_number": 3,
+      "session_order": 2,
+      "session_type": "strength",
+      "exercises": [
+        {
+          "name": "Back Squat",
+          "category": "strength",
+          "equipment": ["barbell", "rack"],
+          "session_exercise_details": {
+            "exercise_order": 1,
+            "sets": 5,
+            "reps": 5,
+            "rest_seconds": 180,
+            "load_type": "rpe_based",
+            "intensity_prescriptions": [
+               { "intensity_type_code": "rpe", "target_value": 7.5 }
+            ]
+          }
+        },
+        {
+          "name": "Overhead Press",
+          "category": "strength",
+          "equipment": ["barbell", "rack"],
+          "muscle_groups": ["shoulders", "triceps", "core"],
+          "movement_pattern": "push",
+          "session_exercise_details": {
+            "exercise_order": 2,
+            "sets": 5,
+            "reps": 5,
+            "rest_seconds": 180,
+            "load_type": "rpe_based",
+            "intensity_prescriptions": [
+               { "intensity_type_code": "rpe", "target_value": 8 }
+            ]
+          }
+        },
+        {
+          "name": "Deadlift",
+          "category": "strength",
+          "equipment": ["barbell", "platform"],
+          "muscle_groups": ["posterior_chain", "back", "legs"],
+          "movement_pattern": "hinge",
+          "session_exercise_details": {
+            "exercise_order": 3,
+            "sets": 1,
+            "reps": 5,
+            "rest_seconds": 300,
+            "load_type": "rpe_based",
+            "tempo": "X-0-X-0",
+            "notes": "Reset each rep completely (dead stop)",
+            "intensity_prescriptions": [
+               { "intensity_type_code": "rpe", "target_value": 8.5 }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
